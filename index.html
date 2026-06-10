@@ -21,10 +21,16 @@
     .calendar-header button { background: none; border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; cursor: pointer; }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
     .day-name { background: #f9f9f9; text-align: center; padding: 10px 0; font-size: 12px; font-weight: bold; }
-    .day-cell { background: #fff; min-height: 70px; padding: 5px; cursor: pointer; display: flex; flex-direction: column; }
+    
+    /* 修改月曆格子高度以容納更多文字 */
+    .day-cell { background: #fff; min-height: 90px; padding: 5px; cursor: pointer; display: flex; flex-direction: column; border: 0.5px solid #eee; overflow: hidden; }
     .day-cell.active { background: #E6F7FF; box-shadow: inset 0 0 0 2px var(--primary); }
     .day-date { font-size: 14px; margin-bottom: 4px; }
-    .day-income { font-size: 12px; color: var(--primary); font-weight: bold; margin-top: auto; text-align: right; }
+    
+    /* 地點與項目的小字樣式 */
+    .day-detail-wrapper { margin-top: 2px; flex-grow: 1; overflow-y: auto; }
+    .day-detail { font-size: 10px; line-height: 1.2; color: #606266; background: #f0f2f5; border-radius: 2px; margin-bottom: 2px; padding: 1px 2px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+    .day-income { font-size: 11px; color: var(--primary); font-weight: bold; text-align: right; border-top: 1px solid #eee; padding-top: 2px; }
     
     /* 統計與表單區塊 */
     .section-title { font-size: 16px; font-weight: bold; margin: 20px 20px 10px; border-left: 4px solid var(--primary); padding-left: 8px; }
@@ -135,7 +141,7 @@
 
 <script>
   // ==========================================
-  // 請在此填寫剛才部署的 Google Apps Script 網址
+  // 已更新為正確的執行網址 (/exec)
   // ==========================================
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwqtNhpK12p_lcPHf6rZtXOuZcwfsZIAbXIFA0Uvansf_S4wdNHd4RyLUW7jCuj83Zj/exec"; 
 
@@ -257,7 +263,7 @@
     updateDailyView();
   }
 
-  // 渲染月曆
+  // 渲染月曆 (包含地點、施工項目、數量優化)
   function renderCalendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -265,11 +271,9 @@
     
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
     const calendarDays = document.getElementById('calendarDays');
     calendarDays.innerHTML = '';
     
-    // 計算當月總收入
     let currentMonthTotal = 0;
 
     // 填充空白天數
@@ -281,10 +285,22 @@
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       
-      // 計算該日總收入
+      // 找出該日所有紀錄
       const dailyRecords = records.filter(r => r.date === dateStr);
       const dailyIncome = dailyRecords.reduce((sum, r) => sum + r.totalIncome, 0);
       currentMonthTotal += dailyIncome;
+
+      // 生成詳情文字 (地點 項目 數量)
+      let detailsHtml = '<div class="day-detail-wrapper">';
+      dailyRecords.forEach(r => {
+        if(r.acQty > 0) {
+          detailsHtml += `<div class="day-detail">${r.location} 冷氣 ${r.acQty}</div>`;
+        }
+        if(r.wmQty > 0) {
+          detailsHtml += `<div class="day-detail">${r.location} 洗衣機 ${r.wmQty}</div>`;
+        }
+      });
+      detailsHtml += '</div>';
 
       const isActive = dateStr === selectedDateString ? 'active' : '';
       const incomeHtml = dailyIncome > 0 ? `<div class="day-income">$${dailyIncome}</div>` : '';
@@ -292,11 +308,11 @@
       calendarDays.innerHTML += `
         <div class="day-cell ${isActive}" onclick="selectDate('${dateStr}')">
           <div class="day-date">${day}</div>
+          ${detailsHtml}
           ${incomeHtml}
         </div>
       `;
     }
-    
     document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
   }
 
