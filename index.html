@@ -5,34 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>技師工程接案紀錄</title>
   <style>
-    :root {
-      --primary: #4A90E2;
-      --bg: #F5F7FA;
-      --border: #E4E7ED;
-      --text: #303133;
-      --danger: #F56C6C;
-    }
+    :root { --primary: #4A90E2; --bg: #F5F7FA; --border: #E4E7ED; --text: #303133; --danger: #F56C6C; --mos: #d35400; --clean: #27ae60; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; }
     .container { max-width: 600px; margin: 0 auto; background: #fff; min-height: 100vh; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
     header { background: var(--primary); color: #fff; padding: 15px 20px; text-align: center; font-size: 18px; font-weight: bold; }
     
-    /* 月曆區塊 */
     .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; font-weight: bold; background: #fdfdfd; border-bottom: 1px solid var(--border); }
     .calendar-header button { background: none; border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; cursor: pointer; }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
     .day-name { background: #f9f9f9; text-align: center; padding: 10px 0; font-size: 12px; font-weight: bold; }
     
-    /* 修改月曆格子高度以容納更多文字 */
     .day-cell { background: #fff; min-height: 90px; padding: 5px; cursor: pointer; display: flex; flex-direction: column; border: 0.5px solid #eee; overflow: hidden; }
     .day-cell.active { background: #E6F7FF; box-shadow: inset 0 0 0 2px var(--primary); }
     .day-date { font-size: 14px; margin-bottom: 4px; }
-    
-    /* 地點與項目的小字樣式 */
     .day-detail-wrapper { margin-top: 2px; flex-grow: 1; overflow-y: auto; }
     .day-detail { font-size: 10px; line-height: 1.2; color: #606266; background: #f0f2f5; border-radius: 2px; margin-bottom: 2px; padding: 1px 2px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
     .day-income { font-size: 11px; color: var(--primary); font-weight: bold; text-align: right; border-top: 1px solid #eee; padding-top: 2px; }
     
-    /* 統計與表單區塊 */
     .section-title { font-size: 16px; font-weight: bold; margin: 20px 20px 10px; border-left: 4px solid var(--primary); padding-left: 8px; }
     .monthly-total { background: #E6F7FF; color: var(--primary); padding: 15px 20px; font-size: 16px; font-weight: bold; text-align: center; }
     
@@ -49,21 +38,18 @@
     .item-details > div { flex: 1; }
     
     .btn-submit { background: var(--primary); color: #fff; border: none; padding: 15px; width: calc(100% - 40px); margin: 10px 20px 30px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; }
-    
-    /* 當日紀錄列表 */
     .record-list { padding: 0 20px; }
     .record-item { background: #fff; border: 1px solid var(--border); padding: 15px; border-radius: 6px; margin-bottom: 10px; position: relative; }
     .record-item p { margin: 5px 0; font-size: 14px; }
     .record-title { font-weight: bold; font-size: 16px !important; color: var(--primary); }
     .btn-delete { position: absolute; right: 15px; top: 15px; background: var(--danger); color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-    
     .daily-summary { padding: 10px 20px; text-align: right; font-weight: bold; font-size: 16px; color: var(--danger); border-bottom: 1px dashed var(--border); margin-bottom: 20px; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <header>工作行事曆與收入管理</header>
+  <header>工程接案與收入管理</header>
 
   <div class="calendar-header">
     <button id="prevMonth">◀ 上個月</button>
@@ -82,14 +68,22 @@
   <div class="record-list" id="dailyRecords"></div>
   <div class="daily-summary" id="dailyTotalDisplay">當日總收入：$0</div>
 
-  <div class="section-title">新增施工紀錄</div>
+  <div class="section-title">新增紀錄</div>
   <div class="form-group">
-    <label>施工日期</label>
+    <label>日期</label>
     <input type="date" id="inputDate">
   </div>
   <div class="form-group">
-    <label>單號</label>
+    <label>單號 (選填)</label>
     <input type="text" id="inputOrderNo" placeholder="請輸入接案單號">
+  </div>
+  
+  <div class="section-title">技師工程</div>
+  <div class="form-group">
+    <label>預約時間 (24小時制)</label>
+    <select id="inputTime">
+      <option value="" disabled selected>請選擇時間</option>
+      </select>
   </div>
   <div class="form-group">
     <label>施工地點</label>
@@ -136,16 +130,40 @@
     </div>
   </div>
 
+  <div class="section-title">兼職工作</div>
+  <div class="item-card" id="cardMOS">
+    <div class="checkbox-group">
+      <input type="checkbox" id="checkMOS" onchange="toggleItem('MOS')">
+      <label for="checkMOS">摩斯打烊班 (3小時)</label>
+    </div>
+    <div class="item-details" id="detailsMOS" style="display: none;">
+      <div>
+        <label>當日薪資結算</label>
+        <input type="number" id="valMOS" value="588">
+      </div>
+    </div>
+  </div>
+
+  <div class="item-card" id="cardCleaning">
+    <div class="checkbox-group">
+      <input type="checkbox" id="checkCleaning" onchange="toggleItem('Cleaning')">
+      <label for="checkCleaning">打掃 (固定週三)</label>
+    </div>
+    <div class="item-details" id="detailsCleaning" style="display: none;">
+      <div>
+        <label>當日薪資結算</label>
+        <input type="number" id="valCleaning" value="2500">
+      </div>
+    </div>
+  </div>
+
   <button class="btn-submit" onclick="saveRecord()">儲存紀錄並計算</button>
 </div>
 
 <script>
-  // ==========================================
-  // 已更新為正確的執行網址 (/exec)
-  // ==========================================
+  // 正確的執行網址
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwqtNhpK12p_lcPHf6rZtXOuZcwfsZIAbXIFA0Uvansf_S4wdNHd4RyLUW7jCuj83Zj/exec"; 
 
-  // 資料狀態
   let records = JSON.parse(localStorage.getItem('tech_records')) || [];
   let currentDate = new Date();
   let selectedDateString = formatDate(currentDate);
@@ -153,21 +171,30 @@
   const RATE_COMPANY = 1000;
   const RATE_PRIVATE = 1500;
 
-  // 初始化
+  // 初始化時間選單與畫面
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('inputDate').value = selectedDateString;
+    
+    // 動態生成 09:00 到 22:00 選單
+    const timeSelect = document.getElementById('inputTime');
+    for(let h = 9; h <= 22; h++) {
+      ['00', '30'].forEach(m => {
+        if(h === 22 && m === '30') return; // 做到 22:00
+        const val = `${String(h).padStart(2,'0')}:${m}`;
+        timeSelect.innerHTML += `<option value="${val}">${val}</option>`;
+      });
+    }
+
     renderCalendar();
     updateDailyView();
   });
 
-  // 切換項目表單顯示
   function toggleItem(type) {
     const isChecked = document.getElementById(`check${type}`).checked;
     document.getElementById(`details${type}`).style.display = isChecked ? 'flex' : 'none';
     document.getElementById(`card${type}`).classList.toggle('disabled', !isChecked);
   }
 
-  // 日期格式化工具 (YYYY-MM-DD)
   function formatDate(date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -175,70 +202,85 @@
     return `${y}-${m}-${d}`;
   }
 
-  // 儲存紀錄
   function saveRecord() {
     const date = document.getElementById('inputDate').value;
     const orderNo = document.getElementById('inputOrderNo').value;
+    const time = document.getElementById('inputTime').value;
     const location = document.getElementById('inputLocation').value;
     
     const hasAC = document.getElementById('checkAC').checked;
     const hasWM = document.getElementById('checkWM').checked;
+    const hasMOS = document.getElementById('checkMOS').checked;
+    const hasCleaning = document.getElementById('checkCleaning').checked;
 
-    if (!date || !location) {
-      alert("請填寫日期與施工地點");
-      return;
+    if (!date) { alert("請填寫日期"); return; }
+    if (!hasAC && !hasWM && !hasMOS && !hasCleaning) {
+      alert("請至少選擇一項工作 (工程、摩斯或打掃)"); return;
     }
-    if (!hasAC && !hasWM) {
-      alert("請至少勾選一項施工項目 (冷氣或洗衣機)");
-      return;
+    if ((hasAC || hasWM) && (!time || !location)) {
+      alert("工程案件請務必選擇「預約時間」並填寫「施工地點」"); return;
     }
 
     let acQty = 0, wmQty = 0;
     let companyIncome = 0, privateIncome = 0;
-    let itemStringParts = [location];
+    let mosIncome = 0, cleaningIncome = 0;
+    let itemStringParts = [];
 
-    if (hasAC) {
-      acQty = parseInt(document.getElementById('qtyAC').value) || 0;
-      const source = document.getElementById('sourceAC').value;
-      const income = source === 'company' ? acQty * RATE_COMPANY : acQty * RATE_PRIVATE;
-      if (source === 'company') companyIncome += income; else privateIncome += income;
-      itemStringParts.push(`冷氣${acQty}`);
+    // 處理工程
+    if (hasAC || hasWM) {
+      itemStringParts.push(time);
+      itemStringParts.push(location);
+      if (hasAC) {
+        acQty = parseInt(document.getElementById('qtyAC').value) || 0;
+        const source = document.getElementById('sourceAC').value;
+        const income = source === 'company' ? acQty * RATE_COMPANY : acQty * RATE_PRIVATE;
+        if (source === 'company') companyIncome += income; else privateIncome += income;
+        itemStringParts.push(`冷氣${acQty}`);
+      }
+      if (hasWM) {
+        wmQty = parseInt(document.getElementById('qtyWM').value) || 0;
+        const source = document.getElementById('sourceWM').value;
+        const income = source === 'company' ? wmQty * RATE_COMPANY : wmQty * RATE_PRIVATE;
+        if (source === 'company') companyIncome += income; else privateIncome += income;
+        itemStringParts.push(`洗衣機${wmQty}`);
+      }
     }
 
-    if (hasWM) {
-      wmQty = parseInt(document.getElementById('qtyWM').value) || 0;
-      const source = document.getElementById('sourceWM').value;
-      const income = source === 'company' ? wmQty * RATE_COMPANY : wmQty * RATE_PRIVATE;
-      if (source === 'company') companyIncome += income; else privateIncome += income;
-      itemStringParts.push(`洗衣機${wmQty}`);
+    // 處理兼職
+    if (hasMOS) {
+      mosIncome = parseInt(document.getElementById('valMOS').value) || 0;
+      itemStringParts.push("摩斯打烊班");
+    }
+    if (hasCleaning) {
+      cleaningIncome = parseInt(document.getElementById('valCleaning').value) || 0;
+      itemStringParts.push("打掃");
     }
 
-    const totalIncome = companyIncome + privateIncome;
+    const totalIncome = companyIncome + privateIncome + mosIncome + cleaningIncome;
     const itemString = itemStringParts.join(' ');
     
     const newRecord = {
       id: Date.now().toString(),
-      date, orderNo, location,
-      acQty, wmQty, companyIncome, privateIncome, totalIncome,
+      date, orderNo, time, location,
+      acQty, wmQty, companyIncome, privateIncome, 
+      mos: mosIncome, cleaning: cleaningIncome, totalIncome,
       itemString
     };
 
     records.push(newRecord);
     localStorage.setItem('tech_records', JSON.stringify(records));
-    
-    // 同步至 Google Sheets
     syncToSheet('add', newRecord);
 
-    // 清空表單並更新畫面
+    // 清空表單
     document.getElementById('inputOrderNo').value = '';
+    document.getElementById('inputTime').value = '';
     document.getElementById('inputLocation').value = '';
-    document.getElementById('checkAC').checked = false;
-    document.getElementById('checkWM').checked = false;
-    toggleItem('AC'); toggleItem('WM');
+    ['AC', 'WM', 'MOS', 'Cleaning'].forEach(type => {
+      document.getElementById(`check${type}`).checked = false;
+      toggleItem(type);
+    });
     
     selectedDateString = date;
-    
-    // 若填寫日期與當前月曆不同月份，切換月曆
     const inputDateObj = new Date(date);
     if (inputDateObj.getMonth() !== currentDate.getMonth() || inputDateObj.getFullYear() !== currentDate.getFullYear()) {
       currentDate = inputDateObj;
@@ -248,22 +290,16 @@
     updateDailyView();
   }
 
-  // 刪除紀錄
   function deleteRecord(id) {
-    if(!confirm("確定要刪除這筆訂單嗎？重新計算收入將立即生效。")) return;
-    
+    if(!confirm("確定要刪除這筆紀錄嗎？重新計算收入將立即生效。")) return;
     const recordToDelete = records.find(r => r.id === id);
     records = records.filter(r => r.id !== id);
     localStorage.setItem('tech_records', JSON.stringify(records));
-    
-    // 同步刪除至 Google Sheets
     syncToSheet('delete', recordToDelete);
-
     renderCalendar();
     updateDailyView();
   }
 
-  // 渲染月曆 (包含地點、施工項目、數量優化)
   function renderCalendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -276,29 +312,28 @@
     
     let currentMonthTotal = 0;
 
-    // 填充空白天數
     for (let i = 0; i < firstDay; i++) {
       calendarDays.innerHTML += `<div class="day-cell" style="background:#f9f9f9"></div>`;
     }
 
-    // 填充日期
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      
-      // 找出該日所有紀錄
       const dailyRecords = records.filter(r => r.date === dateStr);
       const dailyIncome = dailyRecords.reduce((sum, r) => sum + r.totalIncome, 0);
       currentMonthTotal += dailyIncome;
 
-      // 生成詳情文字 (地點 項目 數量)
       let detailsHtml = '<div class="day-detail-wrapper">';
       dailyRecords.forEach(r => {
-        if(r.acQty > 0) {
-          detailsHtml += `<div class="day-detail">${r.location} 冷氣 ${r.acQty}</div>`;
+        if(r.acQty > 0 || r.wmQty > 0) {
+          let engText = [];
+          if(r.time) engText.push(r.time);
+          if(r.location) engText.push(r.location);
+          if(r.acQty > 0) engText.push(`冷氣${r.acQty}`);
+          if(r.wmQty > 0) engText.push(`洗衣機${r.wmQty}`);
+          detailsHtml += `<div class="day-detail">${engText.join(' ')}</div>`;
         }
-        if(r.wmQty > 0) {
-          detailsHtml += `<div class="day-detail">${r.location} 洗衣機 ${r.wmQty}</div>`;
-        }
+        if(r.mos > 0) detailsHtml += `<div class="day-detail" style="color:var(--mos);">摩斯</div>`;
+        if(r.cleaning > 0) detailsHtml += `<div class="day-detail" style="color:var(--clean);">打掃</div>`;
       });
       detailsHtml += '</div>';
 
@@ -316,7 +351,6 @@
     document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
   }
 
-  // 選擇日期
   function selectDate(dateStr) {
     selectedDateString = dateStr;
     document.getElementById('inputDate').value = dateStr;
@@ -324,7 +358,6 @@
     updateDailyView();
   }
 
-  // 更新當日紀錄視圖
   function updateDailyView() {
     document.getElementById('selectedDateTitle').innerText = `紀錄清單 (${selectedDateString})`;
     const listContainer = document.getElementById('dailyRecords');
@@ -342,7 +375,7 @@
           <div class="record-item">
             <p class="record-title">${r.itemString}</p>
             <p>單號：${r.orderNo || '無'}</p>
-            <p>收入：$${r.totalIncome} (公司: $${r.companyIncome}, 私下: $${r.privateIncome})</p>
+            <p>總計：$${r.totalIncome} (工程: $${r.companyIncome + r.privateIncome}, 摩斯: $${r.mos}, 打掃: $${r.cleaning})</p>
             <button class="btn-delete" onclick="deleteRecord('${r.id}')">刪除</button>
           </div>
         `;
@@ -351,22 +384,14 @@
     document.getElementById('dailyTotalDisplay').innerText = `當日總收入：$${dailyTotal}`;
   }
 
-  // 月份切換
-  document.getElementById('prevMonth').addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() - 1);
-    renderCalendar();
-  });
-  document.getElementById('nextMonth').addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() + 1);
-    renderCalendar();
-  });
+  document.getElementById('prevMonth').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+  document.getElementById('nextMonth').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
 
-  // 非同步發送資料至 Google Apps Script
   function syncToSheet(action, record) {
     if (!GAS_URL) return;
     fetch(GAS_URL, {
       method: 'POST',
-      mode: 'no-cors', // 避免瀏覽器 CORS 擋截，不需等待回傳即可確保送出
+      mode: 'no-cors', 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: action, record: record })
     }).catch(err => console.log('Sync error:', err));
