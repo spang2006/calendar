@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>班表紀錄</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f2f2f7; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 100%; margin: 0 auto; }
+        .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #555; }
+        input[type="text"], input[type="date"], select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; -webkit-appearance: none; background-color: #fafafa; }
+        input:focus, select:focus { outline: none; border-color: #007aff; }
+        button { width: 100%; padding: 14px; background-color: #007aff; color: #fff; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; }
+        button:active { background-color: #005bb5; }
+        .result-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 15px; }
+        .result-row:last-child { border-bottom: none; }
+        .highlight-income { font-size: 22px; font-weight: bold; color: #34c759; }
+        #statusMsg { text-align: center; margin-top: 15px; font-size: 15px; font-weight: bold; height: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="form-group">
+                <label>日期</label>
+                <input type="date" id="dateInput">
+            </div>
+            <div class="form-group">
+                <label>單號</label>
+                <input type="text" id="orderInput" placeholder="請輸入單號">
+            </div>
+            <div class="form-group">
+                <label>項目 (例：南港 冷氣2、汐止 洗衣機)</label>
+                <input type="text" id="itemInput" placeholder="輸入內容將自動分析台數">
+            </div>
+            <div class="form-group">
+                <label>收入來源</label>
+                <select id="sourceInput">
+                    <option value="公司">公司 (1000/台)</option>
+                    <option value="私下">私下 (1500/台)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="result-row"><span>冷氣數量：</span><span id="acCountDisplay">0</span></div>
+            <div class="result-row"><span>洗衣機數量：</span><span id="wmCountDisplay">0</span></div>
+            <div class="result-row"><span>今日總工作台數：</span><span id="totalUnitsDisplay" style="font-weight: bold;">0</span></div>
+            <div class="result-row"><span>今日結算收入：</span><span id="dailyIncomeDisplay" style="color: #007aff; font-weight: bold;">$0</span></div>
+        </div>
+
+        <button id="submitBtn" onclick="submitData()">上傳至試算表</button>
+        <div id="statusMsg"></div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="result-row">
+                <span style="font-weight: bold; font-size: 16px; align-self: center;">本月累計收入估算：</span>
+                <span id="monthlyIncomeDisplay" class="highlight-income">$0</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 設定今日日期為預設值
+        document.getElementById('dateInput').valueAsDate = new Date();
+
+        const itemInput = document.getElementById('itemInput');
+        const sourceInput = document.getElementById('sourceInput');
+
+        // 核心計算邏輯
+        function calculate() {
+            const text = itemInput.value;
+            const source = sourceInput.value;
+
+            // 利用正則表達式抓取「冷氣」與「洗衣機」後面的數字。若有字眼但沒數字則預設為 1
+            let acCount = 0;
+            const acMatch = text.match(/冷氣\s*(\d*)/);
+            if (acMatch) acCount = acMatch[1] ? parseInt(acMatch[1]) : 1;
+
+            let wmCount = 0;
+            const wmMatch = text.match(/洗衣機\s*(\d*)/);
+            if (wmMatch) wmCount = wmMatch[1] ? parseInt(wmMatch[1]) : 1;
+
+            const totalUnits = acCount + wmCount;
+            const pricePerUnit = (source === '公司') ? 1000 : 1500;
+            const dailyIncome = totalUnits * pricePerUnit;
+
+            document.getElementById('acCountDisplay').textContent = acCount;
+            document.getElementById('wmCountDisplay').textContent = wmCount;
+            document.getElementById('totalUnitsDisplay').textContent = totalUnits;
+            document.getElementById('dailyIncomeDisplay').textContent = '$' + dailyIncome;
+
+            return { acCount, wmCount, totalUnits, dailyIncome };
+        }
+
+        // 監聽輸入框變化以即時計算
+        itemInput.addEventListener('input', calculate);
+        sourceInput.addEventListener('change', calculate);
+
+        // 管理本月累計收入 (儲存於手機本地端)
+        let currentMonth = new Date().getMonth();
+        let savedMonth = localStorage.getItem('savedMonth');
+        let monthlyIncome = parseInt(localStorage.getItem('monthlyIncome')) || 0;
+
+        // 若跨月則自動歸零
+        if (savedMonth != currentMonth) {
+            monthlyIncome = 0;
+            localStorage.setItem('savedMonth', currentMonth);
+            localStorage.setItem('monthlyIncome', 0);
+        }
+        document.getElementById('monthlyIncomeDisplay').textContent = '$' + monthlyIncome;
+
+        // 【重點】請替換成你的 Web App URL
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbwjvTkAZiZ6ARySAfYoz3Yf1A_RXnj1mFxEFrLLgEO1j_aTC1yneqZIwqpnq1UtFPeb/exec'; 
+
+        function submitData() {
+            const btn = document.getElementById('submitBtn');
+            const msg = document.getElementById('statusMsg');
+            const date = document.getElementById('dateInput').value;
+            const orderNo = document.getElementById('orderInput').value;
+            const item = itemInput.value;
+            const source = sourceInput.value;
+            const calcResult = calculate();
+
+            if (!date || !item) {
+                msg.textContent = '請填寫日期與項目';
+                msg.style.color = 'red';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.style.backgroundColor = '#999';
+            btn.textContent = '資料上傳中...';
+            msg.textContent = '';
+
+            // 打包準備送出的資料
+            const formData = new URLSearchParams();
+            formData.append('date', date);
+            formData.append('orderNo', orderNo);
+            formData.append('item', item);
+            formData.append('source', source);
+            formData.append('acCount', calcResult.acCount);
+            formData.append('wmCount', calcResult.wmCount);
+            formData.append('totalUnits', calcResult.totalUnits);
+            formData.append('dailyIncome', calcResult.dailyIncome);
+
+            // 傳送 POST 請求至 Apps Script
+            fetch(scriptURL, { method: 'POST', body: formData })
+                .then(response => {
+                    msg.textContent = '✅ 新增成功！已寫入試算表';
+                    msg.style.color = '#34c759';
+                    
+                    // 更新月收入
+                    monthlyIncome += calcResult.dailyIncome;
+                    localStorage.setItem('monthlyIncome', monthlyIncome);
+                    document.getElementById('monthlyIncomeDisplay').textContent = '$' + monthlyIncome;
+                    
+                    // 清空單號與項目，保留日期與來源方便連續輸入
+                    document.getElementById('orderInput').value = '';
+                    itemInput.value = '';
+                    calculate();
+                })
+                .catch(error => {
+                    msg.textContent = '❌ 傳送失敗，請檢查網路連線';
+                    msg.style.color = 'red';
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.style.backgroundColor = '#007aff';
+                    btn.textContent = '上傳至試算表';
+                    setTimeout(() => { msg.textContent = ''; }, 3000);
+                });
+        }
+    </script>
+</body>
+</html>
