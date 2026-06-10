@@ -25,7 +25,6 @@
     .day-date { font-size: 13px; margin-bottom: 2px; color: #aaa; }
     
     .day-detail-wrapper { margin-top: 2px; flex-grow: 1; overflow-y: auto; }
-    /* 日曆內容字體縮小且取消截斷，讓內容自然換行顯示完整 */
     .day-detail { font-size: 9px; line-height: 1.15; color: var(--primary); margin-bottom: 2px; white-space: normal; word-break: break-all; font-weight: bold; }
     .day-income { font-size: 10px; color: #aaa; text-align: right; border-top: 1px solid var(--border); padding-top: 2px; margin-top: auto; }
     
@@ -52,7 +51,6 @@
     .record-item p { margin: 4px 0; font-size: 13px; color: #ccc; }
     .record-title { font-weight: bold; font-size: 15px !important; color: var(--primary) !important; padding-right: 90px; }
     
-    /* 編輯與刪除按鈕區塊 */
     .record-actions { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
     .btn-action { color: #fff; border: none; padding: 5px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold; }
     .btn-edit { background: #3498DB; }
@@ -161,7 +159,7 @@
       <div>
         <label>薪資來源</label>
         <select id="sourceCustom">
-          <option value="company">系統</option>
+          <option value="company">公司</option>
           <option value="private">私下</option>
         </select>
       </div>
@@ -196,13 +194,12 @@
 </div>
 
 <script>
-  // 你的網頁應用程式網址
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbwqtNhpK12p_lcPHf6rZtXOuZcwfsZIAbXIFA0Uvansf_S4wdNHd4RyLUW7jCuj83Zj/exec"; 
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbwqtNhpK12p_lcPHf6rZtXOuZcwfsZIAbXIFA0Uvansf_S4wdNHd4RyLUW7jCuj83Zj/exec";
 
-  let records = []; 
+  let records = [];
   let currentDate = new Date();
   let selectedDateString = formatDate(currentDate);
-  let editingId = null; // 用來追蹤目前是否在編輯模式
+  let editingId = null;
 
   const RATE_COMPANY = 1000;
   const RATE_PRIVATE = 1500;
@@ -211,9 +208,9 @@
     document.getElementById('inputDate').value = selectedDateString;
     
     const timeSelect = document.getElementById('inputTime');
-    for(let h = 9; h <= 22; h++) {
+    for (let h = 9; h <= 22; h++) {
       ['00', '30'].forEach(m => {
-        if(h === 22 && m === '30') return;
+        if (h === 22 && m === '30') return;
         const val = `${String(h).padStart(2,'0')}:${m}`;
         timeSelect.innerHTML += `<option value="${val}">${val}</option>`;
       });
@@ -251,60 +248,63 @@
     return `${y}-${m}-${d}`;
   }
 
-  // 進入編輯狀態，還原所有欄位
   function editRecord(id) {
-    const r = records.find(x => x.id === id);
+    const r = records.find(x => String(x.id) === String(id));
     if (!r) return;
 
-    editingId = id;
-    
-    // 滾動至上方表單區塊
+    editingId = String(id);
+
     document.getElementById('btnSubmit').scrollIntoView({ behavior: 'smooth', block: 'end' });
-    
-    // UI 切換至編輯模式
+
     document.getElementById('btnSubmit').innerText = "更新紀錄並計算";
     document.getElementById('btnSubmit').style.background = "#3498DB";
     document.getElementById('btnCancel').style.display = "block";
-    
-    // 填入既有資料
+
     document.getElementById('inputDate').value = r.date || '';
     document.getElementById('inputOrderNo').value = r.orderNo || '';
     document.getElementById('inputTime').value = r.time || '';
     document.getElementById('inputLocation').value = r.location || '';
-    
-    // 先清空所有勾選
+
     ['AC', 'WM', 'Custom', 'MOS', 'Cleaning'].forEach(type => {
-       document.getElementById(`check${type}`).checked = false;
-       toggleItem(type);
+      document.getElementById(`check${type}`).checked = false;
+      toggleItem(type);
     });
-    
+
     if (r.acQty > 0) {
-       document.getElementById('checkAC').checked = true; toggleItem('AC');
-       document.getElementById('qtyAC').value = r.acQty;
-       document.getElementById('sourceAC').value = r.acSource || 'company';
+      document.getElementById('checkAC').checked = true;
+      toggleItem('AC');
+      document.getElementById('qtyAC').value = r.acQty;
+      document.getElementById('sourceAC').value = r.acSource || 'company';
     }
+
     if (r.wmQty > 0) {
-       document.getElementById('checkWM').checked = true; toggleItem('WM');
-       document.getElementById('qtyWM').value = r.wmQty;
-       document.getElementById('sourceWM').value = r.wmSource || 'company';
+      document.getElementById('checkWM').checked = true;
+      toggleItem('WM');
+      document.getElementById('qtyWM').value = r.wmQty;
+      document.getElementById('sourceWM').value = r.wmSource || 'company';
     }
+
     if (r.customVal > 0 || r.customName) {
-       document.getElementById('checkCustom').checked = true; toggleItem('Custom');
-       document.getElementById('nameCustom').value = r.customName || '';
-       document.getElementById('valCustom').value = r.customVal || 0;
-       document.getElementById('sourceCustom').value = r.customSource || 'company';
+      document.getElementById('checkCustom').checked = true;
+      toggleItem('Custom');
+      document.getElementById('nameCustom').value = r.customName || '';
+      document.getElementById('valCustom').value = r.customVal || 0;
+      document.getElementById('sourceCustom').value = r.customSource || 'company';
     }
+
     if (r.mos > 0) {
-       document.getElementById('checkMOS').checked = true; toggleItem('MOS');
-       document.getElementById('valMOS').value = r.mos;
+      document.getElementById('checkMOS').checked = true;
+      toggleItem('MOS');
+      document.getElementById('valMOS').value = r.mos;
     }
+
     if (r.cleaning > 0 || (r.itemString && r.itemString.includes('打掃'))) {
-       document.getElementById('checkCleaning').checked = true; toggleItem('Cleaning');
-       document.getElementById('valCleaning').value = r.cleaning || 0;
+      document.getElementById('checkCleaning').checked = true;
+      toggleItem('Cleaning');
+      document.getElementById('valCleaning').value = r.cleaning || 0;
     }
   }
 
-  // 重置表單狀態
   function resetForm() {
     editingId = null;
     document.getElementById('btnSubmit').innerText = "儲存紀錄並計算";
@@ -314,10 +314,12 @@
     document.getElementById('inputOrderNo').value = '';
     document.getElementById('inputTime').value = '';
     document.getElementById('inputLocation').value = '';
-    ['AC', 'WM', 'Custom', 'MOS', 'Cleaning'].forEach(type => { 
-        document.getElementById(`check${type}`).checked = false; 
-        toggleItem(type); 
+
+    ['AC', 'WM', 'Custom', 'MOS', 'Cleaning'].forEach(type => {
+      document.getElementById(`check${type}`).checked = false;
+      toggleItem(type);
     });
+
     document.getElementById('qtyAC').value = 1;
     document.getElementById('qtyWM').value = 1;
     document.getElementById('nameCustom').value = '';
@@ -348,6 +350,7 @@
     if (hasAC || hasWM || hasCustom) {
       itemStringParts.push(time);
       itemStringParts.push(location);
+
       if (hasAC) {
         acQty = parseInt(document.getElementById('qtyAC').value) || 0;
         acSource = document.getElementById('sourceAC').value;
@@ -355,6 +358,7 @@
         if (acSource === 'company') companyIncome += income; else privateIncome += income;
         itemStringParts.push(`冷氣${acQty}`);
       }
+
       if (hasWM) {
         wmQty = parseInt(document.getElementById('qtyWM').value) || 0;
         wmSource = document.getElementById('sourceWM').value;
@@ -362,6 +366,7 @@
         if (wmSource === 'company') companyIncome += income; else privateIncome += income;
         itemStringParts.push(`洗衣機${wmQty}`);
       }
+
       if (hasCustom) {
         customName = document.getElementById('nameCustom').value || "特殊項目";
         customVal = parseInt(document.getElementById('valCustom').value) || 0;
@@ -371,27 +376,46 @@
       }
     }
 
-    if (hasMOS) { mosIncome = parseInt(document.getElementById('valMOS').value) || 0; itemStringParts.push("摩斯打烊班"); }
-    if (hasCleaning) { cleaningIncome = parseInt(document.getElementById('valCleaning').value) || 0; itemStringParts.push("打掃"); }
+    if (hasMOS) {
+      mosIncome = parseInt(document.getElementById('valMOS').value) || 0;
+      itemStringParts.push("摩斯打烊班");
+    }
+
+    if (hasCleaning) {
+      cleaningIncome = parseInt(document.getElementById('valCleaning').value) || 0;
+      itemStringParts.push("打掃");
+    }
 
     const totalIncome = companyIncome + privateIncome + mosIncome + cleaningIncome;
+
     const newRecord = {
-      id: editingId || Date.now().toString(), // 如果是編輯就用原本的ID
-      date, orderNo, time, location,
-      acQty, wmQty, acSource, wmSource, 
-      customName, customVal, customSource,
-      companyIncome, privateIncome, 
-      mos: mosIncome, cleaning: cleaningIncome, totalIncome,
+      id: editingId || Date.now().toString(),
+      date,
+      orderNo,
+      time,
+      location,
+      acQty,
+      wmQty,
+      acSource,
+      wmSource,
+      customName,
+      customVal,
+      customSource,
+      companyIncome,
+      privateIncome,
+      mos: mosIncome,
+      cleaning: cleaningIncome,
+      totalIncome,
       itemString: itemStringParts.join(' ')
     };
 
     let actionCmd = 'add';
     if (editingId) {
-       actionCmd = 'edit';
-       const idx = records.findIndex(r => r.id === editingId);
-       if(idx !== -1) records[idx] = newRecord; // 更新本地端
+      actionCmd = 'edit';
+      const idx = records.findIndex(r => String(r.id) === String(editingId));
+      if (idx !== -1) records[idx] = newRecord;
     } else {
-       records.push(newRecord); // 新增本地端
+      records.push(newRecord);
     }
     
     syncToSheet(actionCmd, newRecord);
@@ -399,6 +423,7 @@
     
     selectedDateString = date;
     const inputDateObj = new Date(date);
+
     if (inputDateObj.getMonth() !== currentDate.getMonth() || inputDateObj.getFullYear() !== currentDate.getFullYear()) {
       currentDate = inputDateObj;
       fetchDataFromSheet();
@@ -409,9 +434,9 @@
   }
 
   function deleteRecord(id) {
-    if(!confirm("確定要刪除這筆紀錄嗎？")) return;
-    const recordToDelete = records.find(r => r.id == id);
-    records = records.filter(r => r.id != id);
+    if (!confirm("確定要刪除這筆紀錄嗎？")) return;
+    const recordToDelete = records.find(r => String(r.id) === String(id));
+    records = records.filter(r => String(r.id) !== String(id));
     syncToSheet('delete', recordToDelete);
     renderCalendar();
     updateDailyView();
@@ -441,16 +466,16 @@
 
       let detailsHtml = '<div class="day-detail-wrapper">';
       dailyRecords.forEach(r => {
-        if(r.acQty > 0 || r.wmQty > 0 || r.customName) {
+        if (r.acQty > 0 || r.wmQty > 0 || r.customName) {
           let engText = [];
-          if(r.location) engText.push(r.location);
-          if(r.acQty > 0) engText.push(`冷氣${r.acQty}`);
-          if(r.wmQty > 0) engText.push(`洗衣機${r.wmQty}`);
-          if(r.customName) engText.push(`${r.customName}`);
+          if (r.location) engText.push(r.location);
+          if (r.acQty > 0) engText.push(`冷氣${r.acQty}`);
+          if (r.wmQty > 0) engText.push(`洗衣機${r.wmQty}`);
+          if (r.customName) engText.push(`${r.customName}`);
           detailsHtml += `<div class="day-detail">${engText.join(' ')}</div>`;
         }
-        if(r.mos > 0) detailsHtml += `<div class="day-detail" style="color:var(--mos);">摩斯</div>`;
-        if(r.cleaning > 0 || String(r.itemString).indexOf("打掃") !== -1) detailsHtml += `<div class="day-detail" style="color:var(--clean);">打掃</div>`;
+        if (r.mos > 0) detailsHtml += `<div class="day-detail" style="color:var(--mos);">摩斯</div>`;
+        if (r.cleaning > 0 || String(r.itemString).indexOf("打掃") !== -1) detailsHtml += `<div class="day-detail" style="color:var(--clean);">打掃</div>`;
       });
       detailsHtml += '</div>';
 
@@ -465,6 +490,7 @@
         </div>
       `;
     }
+
     document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
   }
 
@@ -501,23 +527,25 @@
         `;
       });
     }
+
     document.getElementById('dailyTotalDisplay').innerText = `當日總收入：$${dailyTotal}`;
   }
 
-  document.getElementById('prevMonth').addEventListener('click', () => { 
-    currentDate.setMonth(currentDate.getMonth() - 1); 
-    fetchDataFromSheet(); 
+  document.getElementById('prevMonth').addEventListener('click', () => {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    fetchDataFromSheet();
   });
-  document.getElementById('nextMonth').addEventListener('click', () => { 
-    currentDate.setMonth(currentDate.getMonth() + 1); 
-    fetchDataFromSheet(); 
+
+  document.getElementById('nextMonth').addEventListener('click', () => {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    fetchDataFromSheet();
   });
 
   function syncToSheet(action, record) {
     if (!GAS_URL) return;
     fetch(GAS_URL, {
       method: 'POST',
-      mode: 'no-cors', 
+      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: action, record: record })
     }).catch(err => console.log('寫入失敗:', err));
