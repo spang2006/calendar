@@ -3,16 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>工作曆與收入管理</title>
+  <title>工作安排與收入管理</title>
   <style>
     :root {
       --primary: #E67E22; --primary-dark: #D35400; --bg: #121212; --card-bg: #1E1E1E;
       --border: #333333; --text: #E0E0E0; --danger: #E74C3C; --mos: #3498DB; --clean: #2ECC71;
+      --cal-font-size: 11px; /* 新增：供月曆文字使用的 CSS 變數 */
     }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; }
     .container { max-width: 600px; margin: 0 auto; background: var(--bg); min-height: 100vh; padding-bottom: 50px; }
 
-    header { background: #000; color: var(--primary); padding: 15px 20px; text-align: center; font-size: 18px; font-weight: bold; border-bottom: 1px solid var(--border); }
+    /* 將 header 改為 Flex 排版，以容納右側的設定圖標 */
+    header { display: flex; justify-content: space-between; align-items: center; background: #000; color: var(--primary); padding: 15px 20px; font-size: 18px; font-weight: bold; border-bottom: 1px solid var(--border); }
+    .header-spacer { width: 24px; } /* 用於平衡標題置中 */
+    
+    .settings-btn { background: none; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; }
+    .settings-btn svg { width: 24px; height: 24px; fill: var(--primary); }
 
     .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; font-weight: bold; background: var(--card-bg); border-bottom: 1px solid var(--border); }
     .calendar-header button { background: none; border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; color: var(--text); cursor: pointer; }
@@ -25,11 +31,12 @@
     .day-date { font-size: 13px; margin-bottom: 2px; color: #aaa; }
 
     .day-detail-wrapper { margin-top: 2px; flex-grow: 1; overflow-y: auto; }
-    /* 取消了原本整行的半透明底框，回歸單純的文字排版 */
-    .day-detail { font-size: 11px; line-height: 1.3; text-align: center; color: var(--primary); margin-bottom: 3px; white-space: normal; word-break: break-all; font-weight: bold; }
-    /* 新增：專門給工程項目與台數使用的半透明底標籤 */
-    .tag-orange { background-color: rgba(230, 126, 34, 0.15); border-radius: 4px; padding: 1px 4px; }
     
+    /* 月曆文字：使用變數以便動態調整字型大小 */
+    .day-detail { font-size: var(--cal-font-size); line-height: 1.3; text-align: center; margin-bottom: 3px; white-space: normal; word-break: break-all; font-weight: bold; }
+    /* 工程專用樣式：橘字＋半透明底 */
+    .eng-block { background-color: rgba(230, 126, 34, 0.15); color: var(--primary); border-radius: 4px; padding: 2px 1px; }
+
     .day-income { font-size: 10px; color: #aaa; text-align: right; border-top: 1px solid var(--border); padding-top: 2px; margin-top: auto; }
 
     .section-title { font-size: 15px; font-weight: bold; margin: 20px 20px 10px; border-left: 3px solid var(--primary); padding-left: 8px; color: var(--text); }
@@ -65,6 +72,11 @@
 
     .daily-summary { padding: 10px 20px; text-align: right; font-weight: bold; font-size: 15px; color: var(--primary); border-bottom: 1px dashed var(--border); margin-bottom: 20px; }
 
+    /* 設定視窗樣式 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: var(--card-bg); padding: 20px; border-radius: 8px; width: 80%; max-width: 320px; border: 1px solid var(--border); }
+    .modal-content input[type="range"] { width: 100%; margin-top: 15px; accent-color: var(--primary); }
+
     #loadingOverlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.8); display: flex; flex-direction: column;
@@ -79,13 +91,37 @@
 </head>
 <body>
 
+<div id="settingsModal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 style="margin-top:0; color:var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px;">設定</h3>
+    <div style="padding: 10px 0;">
+      <label style="display:flex; justify-content: space-between; color: var(--text); font-size: 14px;">
+        <span>月曆字型大小</span>
+        <span id="fontSizeDisplay">11px</span>
+      </label>
+      <input type="range" id="fontSizeRange" min="8" max="16" value="11" step="1">
+    </div>
+    <div style="text-align: right; margin-top: 15px;">
+      <button class="btn-submit" style="padding: 8px 15px; font-size:14px; flex:none; width:auto;" onclick="closeSettings()">完成</button>
+    </div>
+  </div>
+</div>
+
 <div id="loadingOverlay">
   <div class="spinner"></div>
   <div>正在與試算表同步資料...</div>
 </div>
 
 <div class="container">
-  <header>工作曆與收入管理</header>
+  <header>
+    <div class="header-spacer"></div>
+    <div>工作安排與收入管理</div>
+    <button class="settings-btn" onclick="openSettings()" aria-label="設定">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+      </svg>
+    </button>
+  </header>
 
   <div class="calendar-header">
     <button id="prevMonth">◀ 上個月</button>
@@ -232,8 +268,38 @@
       });
     }
 
+    // 初始化月曆字型設定
+    initSettings();
+
     fetchDataFromSheet();
   });
+
+  // ========== 設定功能 ==========
+  function openSettings() {
+    document.getElementById('settingsModal').style.display = 'flex';
+  }
+
+  function closeSettings() {
+    document.getElementById('settingsModal').style.display = 'none';
+  }
+
+  function initSettings() {
+    const savedSize = localStorage.getItem('calFontSize') || '11';
+    applyFontSize(savedSize);
+
+    const rangeInput = document.getElementById('fontSizeRange');
+    rangeInput.value = savedSize;
+    rangeInput.addEventListener('input', function(e) {
+      applyFontSize(e.target.value);
+    });
+  }
+
+  function applyFontSize(size) {
+    document.documentElement.style.setProperty('--cal-font-size', size + 'px');
+    document.getElementById('fontSizeDisplay').innerText = size + 'px';
+    localStorage.setItem('calFontSize', size);
+  }
+  // ==============================
 
   function getYearMonthFromDate(dateStr) {
     if (!dateStr) return null;
@@ -521,20 +587,17 @@
       let detailsHtml = '<div class="day-detail-wrapper">';
       dailyRecords.forEach(r => {
         if (r.acQty > 0 || r.wmQty > 0 || r.customName) {
-          // 地點：純文字
-          let locationText = r.location ? r.location + ' ' : '';
+          // 組合工程項目的文字 (地點 + 項目 + 數量)
+          let engText = [];
+          if (r.location) engText.push(r.location);
+          if (r.acQty > 0) engText.push(`冷氣${r.acQty}`);
+          if (r.wmQty > 0) engText.push(`洗衣機${r.wmQty}`);
+          if (r.customName) engText.push(r.customName);
           
-          let items = [];
-          if (r.acQty > 0) items.push(`冷氣${r.acQty}`);
-          if (r.wmQty > 0) items.push(`洗衣機${r.wmQty}`);
-          if (r.customName) items.push(r.customName);
-          
-          // 施工項目與台數：加上 .tag-orange 的底色
-          let itemsHtml = items.length > 0 ? `<span class="tag-orange">${items.join(' ')}</span>` : '';
-          
-          detailsHtml += `<div class="day-detail">${locationText}${itemsHtml}</div>`;
+          // 使用 eng-block 套用橘字和半透明橘底
+          detailsHtml += `<div class="day-detail eng-block">${engText.join(' ')}</div>`;
         }
-        // 摩斯與打掃：加上指定顏色樣式、無背景色
+        // 摩斯與打掃：加上指定顏色樣式、無背景底色
         if (r.mos > 0) detailsHtml += `<div class="day-detail" style="color:var(--mos);">摩斯</div>`;
         if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) {
           detailsHtml += `<div class="day-detail" style="color:var(--clean);">打掃</div>`;
