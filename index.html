@@ -18,7 +18,7 @@
       --input-padding: 6px;
       
       /* 固定為圓潤風格 */
-      --card-border-radius: 14px;
+      --card-border-radius: 16px;
       --input-border-radius: 8px;
       
       /* 動態字體大小變數 */
@@ -389,50 +389,8 @@
     } finally {
       document.getElementById('loadingOverlay').style.display = 'none';
       renderCalendar();
-function updateDailyView() {
-    document.getElementById('selectedDateTitle').innerText = `紀錄清單 (${selectedDateString})`;
-    const listContainer = document.getElementById('dailyRecords');
-    
-    // 取得當日紀錄
-    let dailyRecords = records.filter(r => r.date === selectedDateString);
-
-    // 【新增邏輯】依照時間從早到晚排序
-    dailyRecords.sort((a, b) => {
-      // 擷取 itemString 中第一個符合 HH:MM 格式的文字
-      const matchA = a.itemString && a.itemString.match(/(\d{2}:\d{2})/);
-      const matchB = b.itemString && b.itemString.match(/(\d{2}:\d{2})/);
-      
-      // 若有找到時間則使用該時間，若沒有則給予 "24:00" 讓它排在清單最下方
-      const timeA = matchA ? matchA[1] : "24:00";
-      const timeB = matchB ? matchB[1] : "24:00";
-      
-      return timeA.localeCompare(timeB);
-    });
-
-    listContainer.innerHTML = '';
-    let dailyTotal = 0;
-
-    if (dailyRecords.length === 0) {
-      listContainer.innerHTML = '<p style="text-align:center; color:#666;">當日尚無紀錄</p>';
-    } else {
-      dailyRecords.forEach(r => {
-        dailyTotal += Number(r.totalIncome) || 0;
-        listContainer.innerHTML += `
-          <div class="record-item">
-            <div class="record-actions">
-              <button class="btn-action btn-edit" onclick="editRecord('${String(r.id)}')">編輯</button>
-              <button class="btn-action btn-delete" onclick="deleteRecord('${String(r.id)}')">刪除</button>
-            </div>
-            <p class="record-title">${r.itemString}</p>
-            <p>單號：${r.orderNo || '無'}</p>
-            <p>總計：$${r.totalIncome} (工程:$${(Number(r.companyIncome) || 0) + (Number(r.privateIncome) || 0)}, 摩斯:$${Number(r.mos) || 0}, 打掃:$${Number(r.cleaning) || 0})</p>
-          </div>
-        `;
-      });
+      updateDailyView();
     }
-
-    document.getElementById('dailyTotalDisplay').innerText = `當日總收入：$${dailyTotal}`;
-  }
   }
 
   function editRecord(id) {
@@ -720,7 +678,22 @@ function updateDailyView() {
   function updateDailyView() {
     document.getElementById('selectedDateTitle').innerText = `紀錄清單 (${selectedDateString})`;
     const listContainer = document.getElementById('dailyRecords');
-    const dailyRecords = records.filter(r => r.date === selectedDateString);
+    
+    // 取得當日紀錄
+    let dailyRecords = records.filter(r => r.date === selectedDateString);
+
+    // 【新增邏輯】依照時間從早到晚排序
+    dailyRecords.sort((a, b) => {
+      // 擷取 itemString 中第一個符合 HH:MM 格式的文字
+      const matchA = a.itemString && a.itemString.match(/(\d{2}:\d{2})/);
+      const matchB = b.itemString && b.itemString.match(/(\d{2}:\d{2})/);
+      
+      // 若有找到時間則使用該時間，若沒有則給予 "24:00" 讓它排在清單最下方
+      const timeA = matchA ? matchA[1] : "24:00";
+      const timeB = matchB ? matchB[1] : "24:00";
+      
+      return timeA.localeCompare(timeB);
+    });
 
     listContainer.innerHTML = '';
     let dailyTotal = 0;
