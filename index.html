@@ -185,7 +185,7 @@
   <div class="item-card" id="cardAC">
     <div class="checkbox-group">
       <input type="checkbox" id="checkAC" onchange="toggleItem('AC')">
-      <label for="checkAC">冷氣工程</label>
+      <label for="checkAC">冷氣</label>
     </div>
     <div class="item-details" id="detailsAC" style="display:none;">
       <div><label>數量</label><input type="number" id="qtyAC" min="1" value="1"></div>
@@ -202,7 +202,7 @@
   <div class="item-card" id="cardWM">
     <div class="checkbox-group">
       <input type="checkbox" id="checkWM" onchange="toggleItem('WM')">
-      <label for="checkWM">洗衣機工程</label>
+      <label for="checkWM">洗衣機</label>
     </div>
     <div class="item-details" id="detailsWM" style="display:none;">
       <div><label>數量</label><input type="number" id="qtyWM" min="1" value="1"></div>
@@ -473,7 +473,7 @@
       return;
     }
     if ((hasAC || hasWM || hasCustom) && (!time || !location)) {
-      alert("工程案件請選擇時間並填寫地點");
+      alert("案件請選擇時間並填寫地點");
       return;
     }
 
