@@ -1,415 +1,736 @@
-var DATA_COLS = 13;        // A:M，A-K可見資料，L=id，M=完整JSON
-var CACHE_SECONDS = 21600; // 延長至6小時，因寫入會自動清除快取，可大幅加快讀取速度
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>工作曆與收入管理</title>
+  <style>
+    :root {
+      --primary: #E67E22; --primary-dark: #D35400; --bg: #121212; --card-bg: #1E1E1E;
+      --border: #333333; --text: #E0E0E0; --danger: #E74C3C; --mos: #3498DB; --clean: #2ECC71;
+      --cal-font-size: 11px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 0 auto; background: var(--bg); min-height: 100vh; padding-bottom: 50px; }
+    header { display: flex; justify-content: space-between; align-items: center; background: #000; color: var(--primary); padding: 15px 20px; font-size: 18px; font-weight: bold; border-bottom: 1px solid var(--border); }
+    .header-spacer { width: 24px; }
+    .settings-btn { background: none; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; }
+    .settings-btn svg { width: 24px; height: 24px; fill: var(--primary); }
+    .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; font-weight: bold; background: var(--card-bg); border-bottom: 1px solid var(--border); }
+    .calendar-header button { background: none; border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; color: var(--text); cursor: pointer; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+    .day-name { background: #1a1a1a; text-align: center; padding: 8px 0; font-size: 12px; font-weight: bold; color: #888; }
+    .day-cell { background: var(--card-bg); min-height: 65px; padding: 4px; cursor: pointer; display: flex; flex-direction: column; overflow: hidden; }
+    .day-cell.active { background: #2A2A2A; box-shadow: inset 0 0 0 1.5px var(--primary); }
+    .day-cell.empty { background: #111; }
+    .day-date { font-size: 13px; margin-bottom: 2px; color: #aaa; }
+    .day-detail-wrapper { margin-top: 2px; flex-grow: 1; overflow-y: auto; }
+    .day-detail { font-size: var(--cal-font-size); line-height: 1.3; text-align: center; margin-bottom: 3px; white-space: normal; word-break: break-all; font-weight: bold; }
+    .eng-block { background-color: rgba(230, 126, 34, 0.15); color: var(--primary); border-radius: 4px; padding: 2px 1px; }
+    .day-income { font-size: 10px; color: #aaa; text-align: right; border-top: 1px solid var(--border); padding-top: 2px; margin-top: auto; }
+    .section-title { font-size: 15px; font-weight: bold; margin: 20px 20px 10px; border-left: 3px solid var(--primary); padding-left: 8px; color: var(--text); }
+    .monthly-total { background: #1a1a1a; color: var(--primary); padding: 12px 20px; font-size: 15px; font-weight: bold; text-align: center; border-bottom: 1px solid var(--border); }
+    .form-group { padding: 8px 20px; }
+    .form-group label { display: block; margin-bottom: 5px; font-size: 13px; color: #aaa; }
+    .form-group input[type="text"], .form-group input[type="date"], .form-group input[type="number"], .form-group select {
+      width: 100%; padding: 10px; background: var(--card-bg); border: 1px solid var(--border); color: var(--text);
+      border-radius: 4px; box-sizing: border-box; font-size: 15px;
+    }
+    .item-card { border: 1px solid var(--border); border-radius: 6px; padding: 15px; margin: 0 20px 12px; background: var(--card-bg); }
+    .item-card.disabled { opacity: 0.4; }
+    .checkbox-group { display: flex; align-items: center; margin-bottom: 5px; }
+    .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; margin-right: 10px; accent-color: var(--primary); }
+    .checkbox-group label { font-size: 15px; font-weight: bold; margin: 0; }
+    .item-details { display: flex; gap: 10px; margin-top: 10px; }
+    .item-details > div { flex: 1; }
+    .btn-submit { background: var(--primary); color: #fff; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; flex: 1; }
+    .btn-cancel { background: #555; display: none; }
+    .record-list { padding: 0 20px; }
+    .record-item { background: var(--card-bg); border: 1px solid var(--border); padding: 12px; border-radius: 6px; margin-bottom: 10px; position: relative; }
+    .record-item p { margin: 4px 0; font-size: 13px; color: #ccc; }
+    .record-title { font-weight: bold; font-size: 15px !important; color: var(--primary) !important; padding-right: 90px; }
+    .record-actions { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+    .btn-action { color: #fff; border: none; padding: 5px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold; }
+    .btn-edit { background: #3498DB; }
+    .btn-delete { background: var(--danger); }
+    .daily-summary { padding: 10px 20px; text-align: right; font-weight: bold; font-size: 15px; color: var(--primary); border-bottom: 1px dashed var(--border); margin-bottom: 20px; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: var(--card-bg); padding: 20px; border-radius: 8px; width: 80%; max-width: 320px; border: 1px solid var(--border); }
+    .modal-content input[type="range"] { width: 100%; margin-top: 15px; accent-color: var(--primary); }
+    #loadingOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); display: none; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 9999; color: var(--primary);
+    }
+    .spinner {
+      border: 4px solid #333; border-top: 4px solid var(--primary); border-radius: 50%;
+      width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 10px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
 
-function doGet(e) {
-  var month = Number((e && e.parameter && e.parameter.month) || 0);
-  var year = Number((e && e.parameter && e.parameter.year) || new Date().getFullYear());
-  if (!month) return jsonOutput_([]);
+<div id="settingsModal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 style="margin-top:0; color:var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px;">設定</h3>
+    <div style="padding: 10px 0;">
+      <label style="display:flex; justify-content: space-between; color: var(--text); font-size: 14px;">
+        <span>月曆字型大小</span>
+        <span id="fontSizeDisplay">11px</span>
+      </label>
+      <input type="range" id="fontSizeRange" min="8" max="16" value="11" step="1">
+    </div>
+    <div style="text-align: right; margin-top: 15px;">
+      <button class="btn-submit" style="padding: 8px 15px; font-size:14px; flex:none; width:auto;" onclick="closeSettings()">完成</button>
+    </div>
+  </div>
+</div>
 
-  var cache = CacheService.getScriptCache();
-  var cacheKey = getCacheKey_(year, month);
-  var cached = cache.get(cacheKey);
-  if (cached) {
-    return ContentService
-      .createTextOutput(cached)
-      .setMimeType(ContentService.MimeType.JSON);
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div id="loadingText">正在與試算表同步資料...</div>
+</div>
+
+<div class="container">
+  <header>
+    <div class="header-spacer"></div>
+    <div>工作曆與收入管理</div>
+    <button class="settings-btn" onclick="openSettings()" aria-label="設定">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="calendar-header">
+    <button id="prevMonth">◀ 上個月</button>
+    <span id="monthYearDisplay"></span>
+    <button id="nextMonth">下個月 ▶</button>
+  </div>
+  <div class="calendar-grid">
+    <div class="day-name">日</div><div class="day-name">一</div><div class="day-name">二</div>
+    <div class="day-name">三</div><div class="day-name">四</div><div class="day-name">五</div><div class="day-name">六</div>
+  </div>
+  <div class="calendar-grid" id="calendarDays"></div>
+
+  <div class="monthly-total" id="monthlyTotalDisplay">本月累計總收入：$0</div>
+
+  <div class="section-title" id="selectedDateTitle">選擇日期：</div>
+  <div class="record-list" id="dailyRecords"></div>
+  <div class="daily-summary" id="dailyTotalDisplay">當日總收入：$0</div>
+
+  <div class="section-title">新增 / 編輯紀錄</div>
+  <div class="form-group">
+    <label>日期</label>
+    <input type="date" id="inputDate">
+  </div>
+  <div class="form-group">
+    <label>單號 (選填)</label>
+    <input type="text" id="inputOrderNo" placeholder="請輸入接案單號">
+  </div>
+
+  <div class="section-title">技師工程</div>
+  <div class="form-group">
+    <label>預約時間 (24小時制)</label>
+    <select id="inputTime">
+      <option value="" disabled selected>請選擇時間</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>施工地點</label>
+    <input type="text" id="inputLocation" placeholder="例如：南港、羅斯福路">
+  </div>
+
+  <div class="item-card" id="cardAC">
+    <div class="checkbox-group">
+      <input type="checkbox" id="checkAC" onchange="toggleItem('AC')">
+      <label for="checkAC">冷氣工程</label>
+    </div>
+    <div class="item-details" id="detailsAC" style="display:none;">
+      <div><label>數量</label><input type="number" id="qtyAC" min="1" value="1"></div>
+      <div>
+        <label>薪資來源</label>
+        <select id="sourceAC">
+          <option value="company">公司 ($1000)</option>
+          <option value="private">私下 ($1500)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="item-card" id="cardWM">
+    <div class="checkbox-group">
+      <input type="checkbox" id="checkWM" onchange="toggleItem('WM')">
+      <label for="checkWM">洗衣機工程</label>
+    </div>
+    <div class="item-details" id="detailsWM" style="display:none;">
+      <div><label>數量</label><input type="number" id="qtyWM" min="1" value="1"></div>
+      <div>
+        <label>薪資來源</label>
+        <select id="sourceWM">
+          <option value="company">公司 ($1000)</option>
+          <option value="private">私下 ($1500)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="item-card" id="cardCustom">
+    <div class="checkbox-group">
+      <input type="checkbox" id="checkCustom" onchange="toggleItem('Custom')">
+      <label for="checkCustom">自訂 / 特殊項目</label>
+    </div>
+    <div class="item-details" id="detailsCustom" style="display:none; flex-direction:column; gap:10px;">
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1;"><label>項目名稱</label><input type="text" id="nameCustom" placeholder="例：拉線、洗洞"></div>
+        <div style="flex:1;"><label>金額</label><input type="number" id="valCustom" value="0"></div>
+      </div>
+      <div>
+        <label>薪資來源</label>
+        <select id="sourceCustom">
+          <option value="company">公司</option>
+          <option value="private">私下</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">兼職工作</div>
+  <div class="item-card" id="cardMOS">
+    <div class="checkbox-group">
+      <input type="checkbox" id="checkMOS" onchange="toggleItem('MOS')">
+      <label for="checkMOS">摩斯打烊班 (3小時)</label>
+    </div>
+    <div class="item-details" id="detailsMOS" style="display:none;">
+      <div><label>當日薪資結算</label><input type="number" id="valMOS" value="588"></div>
+    </div>
+  </div>
+
+  <div class="item-card" id="cardCleaning">
+    <div class="checkbox-group">
+      <input type="checkbox" id="checkCleaning" onchange="toggleItem('Cleaning')">
+      <label for="checkCleaning">打掃 (月薪制，單日不計入總額)</label>
+    </div>
+    <div class="item-details" id="detailsCleaning" style="display:none;">
+      <div><label>紀錄金額 (預設0)</label><input type="number" id="valCleaning" value="0"></div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; margin:15px 20px 30px;">
+    <button class="btn-submit" id="btnSubmit" onclick="saveRecord()">儲存紀錄並計算</button>
+    <button class="btn-submit btn-cancel" id="btnCancel" onclick="resetForm()">取消編輯</button>
+  </div>
+</div>
+
+<script>
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbxv5lO1slksOLNNN1GkLphVVYKkN6ATtacEOYijKLytJLVFvW8aNc2J0fOJHe2JNuup/exec";
+
+  let records = [];
+  let currentDate = new Date();
+  let selectedDateString = formatDate(currentDate);
+  let editingId = null;
+  let editingOriginalYearMonth = null;
+
+  const RATE_COMPANY = 1000;
+  const RATE_PRIVATE = 1500;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('inputDate').value = selectedDateString;
+
+    const timeSelect = document.getElementById('inputTime');
+    let timeHtml = '<option value="" disabled selected>請選擇時間</option>';
+    for (let h = 9; h <= 22; h++) {
+      ['00', '30'].forEach(m => {
+        if (h === 22 && m === '30') return;
+        const val = `${String(h).padStart(2, '0')}:${m}`;
+        timeHtml += `<option value="${val}">${val}</option>`;
+      });
+    }
+    timeSelect.innerHTML = timeHtml;
+
+    initSettings();
+    fetchDataFromSheet();
+  });
+
+  function showLoading(text = '正在與試算表同步資料...') {
+    document.getElementById('loadingText').innerText = text;
+    document.getElementById('loadingOverlay').style.display = 'flex';
   }
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // 支援新舊分頁命名：優先找「YYYY.M月」，找不到再找「M月」
-  var sheetNameNew = year + "." + month + "月";
-  var sheetNameOld = month + "月";
-  var sheet = ss.getSheetByName(sheetNameNew) || ss.getSheetByName(sheetNameOld);
-  
-  if (!sheet) return jsonOutput_([]);
+  function hideLoading() {
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }
 
-  var values = getSheetValues_(sheet);
-  if (values.length <= 1) return jsonOutput_([]);
+  function openSettings() {
+    document.getElementById('settingsModal').style.display = 'flex';
+  }
 
-  var records = [];
-  var currentDateStr = "";
+  function closeSettings() {
+    document.getElementById('settingsModal').style.display = 'none';
+  }
 
-  for (var i = 1; i < values.length; i++) {
-    var row = values[i];
-    var colA = row[0];
-    var colC = row[2];
+  function initSettings() {
+    const savedSize = localStorage.getItem('calFontSize') || '11';
+    applyFontSize(savedSize);
 
-    if (String(colA).indexOf("加總") !== -1 || String(colC).indexOf("加總") !== -1) {
-      break;
-    }
-
-    if (colA !== "") {
-      currentDateStr = normalizeDateValue_(colA);
-    }
-
-    if (!currentDateStr) continue;
-    if (!row[11]) continue; // L欄沒id，不視為有效紀錄
-
-    var recordObj = safeJsonParse_(row[12]);
-    var parsedMeta = parseItemStringMeta_(row[2] || "");
-
-    records.push({
-      date: currentDateStr,
-      orderNo: recordObj.orderNo !== undefined ? recordObj.orderNo : (row[1] || ""),
-      itemString: row[2] || "",
-      time: recordObj.time || parsedMeta.time || "",
-      location: recordObj.location || parsedMeta.location || "",
-      acQty: Number(row[3]) || 0,
-      wmQty: Number(row[4]) || 0,
-      acSource: recordObj.acSource || "company",
-      wmSource: recordObj.wmSource || "company",
-      companyIncome: Number(row[5]) || 0,
-      privateIncome: Number(row[6]) || 0,
-      cleaning: Number(row[8]) || 0,
-      mos: Number(row[9]) || 0,
-      id: String(row[11] || ""),
-      totalIncome:
-        (Number(row[5]) || 0) +
-        (Number(row[6]) || 0) +
-        (Number(row[8]) || 0) +
-        (Number(row[9]) || 0),
-      customName: recordObj.customName || "",
-      customVal: Number(recordObj.customVal) || 0,
-      customSource: recordObj.customSource || "company",
-      originalYearMonth: getYearMonthStr_(currentDateStr)
+    const rangeInput = document.getElementById('fontSizeRange');
+    rangeInput.value = savedSize;
+    rangeInput.addEventListener('input', function(e) {
+      applyFontSize(e.target.value);
     });
   }
 
-  var result = JSON.stringify(records);
-  cache.put(cacheKey, result, CACHE_SECONDS);
+  function applyFontSize(size) {
+    document.documentElement.style.setProperty('--cal-font-size', size + 'px');
+    document.getElementById('fontSizeDisplay').innerText = size + 'px';
+    localStorage.setItem('calFontSize', size);
+  }
 
-  return ContentService
-    .createTextOutput(result)
-    .setMimeType(ContentService.MimeType.JSON);
-}
+  function getYearMonthFromDate(dateStr) {
+    if (!dateStr) return null;
+    const parts = String(dateStr).split('-');
+    return parts[0] + "." + Number(parts[1]);
+  }
 
-function doPost(e) {
-  var lock = LockService.getScriptLock();
+  function toggleItem(type) {
+    const isChecked = document.getElementById(`check${type}`).checked;
+    document.getElementById(`details${type}`).style.display = isChecked ? 'flex' : 'none';
+    document.getElementById(`card${type}`).classList.toggle('disabled', !isChecked);
+  }
 
-  try {
-    lock.waitLock(10000);
+  function formatDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
 
-    var payload = JSON.parse((e && e.postData && e.postData.contents) || "{}");
-    var action = payload.action;
-    var record = payload.record || {};
+  function buildRecordsByDate(recordsArr) {
+    const map = {};
+    recordsArr.forEach(r => {
+      if (!map[r.date]) map[r.date] = [];
+      map[r.date].push(r);
+    });
+    return map;
+  }
 
-    if (!record.date) {
-      return jsonOutput_({ status: "error", message: "缺少 record.date" });
-    }
+  async function fetchDataFromSheet() {
+    showLoading('讀取月份資料中...');
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
 
-    var newYM = getYearMonthObj_(record.date);
-    if (!newYM.month) {
-      return jsonOutput_({ status: "error", message: "record.date 格式錯誤" });
-    }
-
-    var originalYMStr = payload.originalYearMonth || record.originalYearMonth || (newYM.year + "." + newYM.month);
-
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var targetSheetNameNew = newYM.year + "." + newYM.month + "月";
-    var targetSheetNameOld = newYM.month + "月";
-    var targetSheet = ss.getSheetByName(targetSheetNameNew) || ss.getSheetByName(targetSheetNameOld);
-    
-    if (!targetSheet) {
-      return jsonOutput_({ status: "error", message: "找不到分頁: " + targetSheetNameNew + " 或 " + targetSheetNameOld });
-    }
-
-    var rowData = buildRowData_(record);
-
-    if (action === "add") {
-      insertRecordRow_(targetSheet, rowData, record.date);
-      clearMonthCache_(newYM.year, newYM.month);
-      return jsonOutput_({ status: "success" });
-    }
-
-    if (action === "edit") {
-      var origParts = String(originalYMStr).split(".");
-      var origYear = origParts[0];
-      var origMonth = origParts[1];
-      
-      var sourceSheetNameNew = origYear + "." + origMonth + "月";
-      var sourceSheetNameOld = origMonth + "月";
-      var sourceSheet = ss.getSheetByName(sourceSheetNameNew) || ss.getSheetByName(sourceSheetNameOld);
-
-      if (!sourceSheet) sourceSheet = targetSheet;
-
-      var sourceValues = getSheetValues_(sourceSheet);
-      var found = findRowById_(sourceValues, record.id);
-
-      if (found.row !== -1) {
-        var oldEffectiveDate = getEffectiveDateFromRow_(sourceValues, found.index);
-
-        if (originalYMStr === (newYM.year + "." + newYM.month) && oldEffectiveDate === record.date) {
-          sourceSheet.getRange(found.row, 1, 1, rowData.length).setValues([rowData]);
-          clearMonthCache_(newYM.year, newYM.month);
-          return jsonOutput_({ status: "success" });
-        }
-
-        sourceSheet.deleteRow(found.row);
-      }
-
-      insertRecordRow_(targetSheet, rowData, record.date);
-
-      clearMonthCache_(newYM.year, newYM.month);
-      if (originalYMStr !== (newYM.year + "." + newYM.month)) clearMonthCache_(origYear, origMonth);
-
-      return jsonOutput_({ status: "success" });
-    }
-
-    if (action === "delete") {
-      var delParts = String(originalYMStr).split(".");
-      var delYear = delParts[0];
-      var delMonth = delParts[1];
-      
-      var deleteSheetNameNew = delYear + "." + delMonth + "月";
-      var deleteSheetNameOld = delMonth + "月";
-      var deleteSheet = ss.getSheetByName(deleteSheetNameNew) || ss.getSheetByName(deleteSheetNameOld);
-      
-      if (!deleteSheet) {
-        return jsonOutput_({ status: "error", message: "找不到分頁" });
-      }
-
-      var deleteValues = getSheetValues_(deleteSheet);
-      var foundDelete = findRowById_(deleteValues, record.id);
-
-      if (foundDelete.row !== -1) {
-        deleteSheet.deleteRow(foundDelete.row);
-      }
-
-      clearMonthCache_(delYear, delMonth);
-      return jsonOutput_({ status: "success" });
-    }
-
-    return jsonOutput_({ status: "error", message: "未知 action: " + action });
-
-  } catch (error) {
-    return jsonOutput_({ status: "error", message: error.message });
-  } finally {
     try {
-      lock.releaseLock();
-    } catch (e2) {}
-  }
-}
-
-/* =========================
-   讀取 / 解析
-========================= */
-
-function getSheetValues_(sheet) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 1) return [];
-  return sheet.getRange(1, 1, lastRow, DATA_COLS).getValues(); // 固定只讀 A:M
-}
-
-function parseItemStringMeta_(itemString) {
-  var result = {
-    time: "",
-    location: ""
-  };
-
-  var str = String(itemString || "").trim();
-  if (!str) return result;
-
-  var timeMatch = str.match(/^(\d{1,2}:\d{2})\s+/);
-  if (timeMatch) {
-    result.time = timeMatch[1];
-    str = str.substring(timeMatch[0].length).trim();
-  }
-
-  var keywords = ["冷氣", "洗衣機", "摩斯打烊班", "打掃"];
-  var firstIndex = -1;
-
-  for (var i = 0; i < keywords.length; i++) {
-    var idx = str.indexOf(keywords[i]);
-    if (idx !== -1 && (firstIndex === -1 || idx < firstIndex)) {
-      firstIndex = idx;
+      const res = await fetch(`${GAS_URL}?year=${year}&month=${month}`);
+      const data = await res.json();
+      records = Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.error('同步失敗', err);
+      alert('無法讀取試算表資料，請確認部署網址與網路連線。');
+      records = [];
+    } finally {
+      hideLoading();
+      renderCalendar();
+      updateDailyView();
     }
   }
 
-  if (firstIndex > 0) {
-    result.location = str.substring(0, firstIndex).trim();
-  }
+  function editRecord(id) {
+    const r = records.find(x => String(x.id) === String(id));
+    if (!r) return;
 
-  return result;
-}
+    editingId = String(r.id);
+    editingOriginalYearMonth = r.originalYearMonth || getYearMonthFromDate(r.date);
 
-/* =========================
-   新增 / 編輯 / 刪除輔助
-========================= */
+    document.getElementById('btnSubmit').scrollIntoView({ behavior: 'smooth', block: 'end' });
+    document.getElementById('btnSubmit').innerText = '更新紀錄並計算';
+    document.getElementById('btnSubmit').style.background = '#3498DB';
+    document.getElementById('btnCancel').style.display = 'block';
 
-function insertRecordRow_(sheet, rowData, targetDateStr) {
-  var values = getSheetValues_(sheet);
+    document.getElementById('inputDate').value = r.date || '';
+    document.getElementById('inputOrderNo').value = r.orderNo || '';
+    document.getElementById('inputTime').value = r.time || '';
+    document.getElementById('inputLocation').value = r.location || '';
 
-  if (values.length <= 1) {
-    sheet.getRange(2, 1, 1, rowData.length).setValues([rowData]);
-    return;
-  }
+    ['AC', 'WM', 'Custom', 'MOS', 'Cleaning'].forEach(type => {
+      document.getElementById(`check${type}`).checked = false;
+      toggleItem(type);
+    });
 
-  var targetRow = -1;
-  var insertIndex = -1;
-  var foundEmpty = false;
-  var currentScanDateStr = "";
-
-  for (var i = 1; i < values.length; i++) {
-    var cellA = values[i][0];
-    var cellC = values[i][2];
-
-    if (String(cellA).indexOf("加總") !== -1 || String(cellC).indexOf("加總") !== -1) {
-      break;
+    if (r.acQty > 0) {
+      document.getElementById('checkAC').checked = true;
+      toggleItem('AC');
+      document.getElementById('qtyAC').value = r.acQty;
+      document.getElementById('sourceAC').value = r.acSource || 'company';
     }
 
-    if (cellA !== "") {
-      currentScanDateStr = normalizeDateValue_(cellA);
+    if (r.wmQty > 0) {
+      document.getElementById('checkWM').checked = true;
+      toggleItem('WM');
+      document.getElementById('qtyWM').value = r.wmQty;
+      document.getElementById('sourceWM').value = r.wmSource || 'company';
     }
 
-    if (currentScanDateStr === targetDateStr) {
-      if (values[i][1] === "" && values[i][2] === "") {
-        targetRow = i + 1;
-        foundEmpty = true;
-        break;
+    if (r.customVal > 0 || r.customName) {
+      document.getElementById('checkCustom').checked = true;
+      toggleItem('Custom');
+      document.getElementById('nameCustom').value = r.customName || '';
+      document.getElementById('valCustom').value = r.customVal || 0;
+      document.getElementById('sourceCustom').value = r.customSource || 'company';
+    }
+
+    if (r.mos > 0) {
+      document.getElementById('checkMOS').checked = true;
+      toggleItem('MOS');
+      document.getElementById('valMOS').value = r.mos;
+    }
+
+    if (r.cleaning > 0 || String(r.itemString || '').includes('打掃')) {
+      document.getElementById('checkCleaning').checked = true;
+      toggleItem('Cleaning');
+      document.getElementById('valCleaning').value = r.cleaning || 0;
+    }
+  }
+
+  function resetForm() {
+    editingId = null;
+    editingOriginalYearMonth = null;
+
+    document.getElementById('btnSubmit').innerText = '儲存紀錄並計算';
+    document.getElementById('btnSubmit').style.background = 'var(--primary)';
+    document.getElementById('btnCancel').style.display = 'none';
+
+    document.getElementById('inputDate').value = selectedDateString;
+    document.getElementById('inputOrderNo').value = '';
+    document.getElementById('inputTime').value = '';
+    document.getElementById('inputLocation').value = '';
+
+    ['AC', 'WM', 'Custom', 'MOS', 'Cleaning'].forEach(type => {
+      document.getElementById(`check${type}`).checked = false;
+      toggleItem(type);
+    });
+
+    document.getElementById('qtyAC').value = 1;
+    document.getElementById('qtyWM').value = 1;
+    document.getElementById('nameCustom').value = '';
+    document.getElementById('valCustom').value = 0;
+    document.getElementById('valMOS').value = 588;
+    document.getElementById('valCleaning').value = 0;
+    document.getElementById('sourceAC').value = 'company';
+    document.getElementById('sourceWM').value = 'company';
+    document.getElementById('sourceCustom').value = 'company';
+  }
+
+  async function saveRecord() {
+    const date = document.getElementById('inputDate').value;
+    const orderNo = document.getElementById('inputOrderNo').value.trim();
+    const time = document.getElementById('inputTime').value;
+    const location = document.getElementById('inputLocation').value.trim();
+
+    const hasAC = document.getElementById('checkAC').checked;
+    const hasWM = document.getElementById('checkWM').checked;
+    const hasCustom = document.getElementById('checkCustom').checked;
+    const hasMOS = document.getElementById('checkMOS').checked;
+    const hasCleaning = document.getElementById('checkCleaning').checked;
+
+    if (!date) { alert('請填寫日期'); return; }
+    if (!hasAC && !hasWM && !hasCustom && !hasMOS && !hasCleaning) {
+      alert('請至少選擇一項工作');
+      return;
+    }
+    if ((hasAC || hasWM || hasCustom) && (!time || !location)) {
+      alert('工程案件請選擇時間並填寫地點');
+      return;
+    }
+
+    let acQty = 0, wmQty = 0, customVal = 0, companyIncome = 0, privateIncome = 0, mosIncome = 0, cleaningIncome = 0;
+    let acSource = 'company', wmSource = 'company', customSource = 'company';
+    let customName = '';
+    let itemStringParts = [];
+
+    if (hasAC || hasWM || hasCustom) {
+      itemStringParts.push(time);
+      itemStringParts.push(location);
+
+      if (hasAC) {
+        acQty = parseInt(document.getElementById('qtyAC').value, 10) || 0;
+        acSource = document.getElementById('sourceAC').value;
+        const income = acSource === 'company' ? acQty * RATE_COMPANY : acQty * RATE_PRIVATE;
+        if (acSource === 'company') companyIncome += income; else privateIncome += income;
+        itemStringParts.push(`冷氣${acQty}`);
       }
-      insertIndex = i + 1;
-    }
-  }
 
-  if (foundEmpty) {
-    sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
-    return;
-  }
+      if (hasWM) {
+        wmQty = parseInt(document.getElementById('qtyWM').value, 10) || 0;
+        wmSource = document.getElementById('sourceWM').value;
+        const income = wmSource === 'company' ? wmQty * RATE_COMPANY : wmQty * RATE_PRIVATE;
+        if (wmSource === 'company') companyIncome += income; else privateIncome += income;
+        itemStringParts.push(`洗衣機${wmQty}`);
+      }
 
-  if (insertIndex !== -1) {
-    sheet.insertRowAfter(insertIndex);
-    sheet.getRange(insertIndex + 1, 1, 1, rowData.length).setValues([rowData]);
-    return;
-  }
-
-  var summaryRow = findSummaryRow_(values);
-  if (summaryRow !== -1) {
-    sheet.insertRowBefore(summaryRow);
-    sheet.getRange(summaryRow, 1, 1, rowData.length).setValues([rowData]);
-  } else {
-    sheet.appendRow(rowData);
-  }
-}
-
-function findRowById_(values, id) {
-  var targetId = String(id || "");
-  for (var i = values.length - 1; i >= 1; i--) {
-    if (String(values[i][11] || "") === targetId) {
-      return { row: i + 1, index: i };
-    }
-  }
-  return { row: -1, index: -1 };
-}
-
-function getEffectiveDateFromRow_(values, rowIndex) {
-  for (var i = rowIndex; i >= 1; i--) {
-    var colA = values[i][0];
-    var colC = values[i][2];
-
-    if (String(colA).indexOf("加總") !== -1 || String(colC).indexOf("加總") !== -1) {
-      break;
+      if (hasCustom) {
+        customName = document.getElementById('nameCustom').value.trim() || '特殊項目';
+        customVal = parseInt(document.getElementById('valCustom').value, 10) || 0;
+        customSource = document.getElementById('sourceCustom').value;
+        if (customSource === 'company') companyIncome += customVal; else privateIncome += customVal;
+        itemStringParts.push(customName);
+      }
     }
 
-    if (colA !== "") {
-      return normalizeDateValue_(colA);
+    if (hasMOS) {
+      mosIncome = parseInt(document.getElementById('valMOS').value, 10) || 0;
+      itemStringParts.push('21:30 摩斯打烊班');
+    }
+
+    if (hasCleaning) {
+      cleaningIncome = parseInt(document.getElementById('valCleaning').value, 10) || 0;
+      itemStringParts.push('10:00 打掃');
+    }
+
+    const totalIncome = companyIncome + privateIncome + mosIncome + cleaningIncome;
+    const newYM = getYearMonthFromDate(date);
+
+    const newRecord = {
+      id: String(editingId || Date.now().toString()),
+      date,
+      orderNo,
+      time,
+      location,
+      acQty,
+      wmQty,
+      acSource,
+      wmSource,
+      customName,
+      customVal,
+      customSource,
+      companyIncome,
+      privateIncome,
+      mos: mosIncome,
+      cleaning: cleaningIncome,
+      totalIncome,
+      itemString: itemStringParts.join(' '),
+      originalYearMonth: editingOriginalYearMonth || newYM
+    };
+
+    const actionCmd = editingId ? 'edit' : 'add';
+    const ok = await syncToSheet(actionCmd, newRecord);
+    if (!ok) return;
+
+    if (editingId) {
+      const idx = records.findIndex(r => String(r.id) === String(editingId));
+      if (idx !== -1) {
+        records[idx] = { ...newRecord, originalYearMonth: newYM };
+      } else {
+        records.push({ ...newRecord, originalYearMonth: newYM });
+      }
+    } else {
+      records.push({ ...newRecord, originalYearMonth: newYM });
+    }
+
+    if (editingId && editingOriginalYearMonth && editingOriginalYearMonth !== newYM) {
+      records = records.filter(r => !(String(r.id) === String(editingId) && r.originalYearMonth !== newYM));
+    }
+
+    selectedDateString = date;
+    resetForm();
+
+    const inputDateObj = new Date(date);
+    if (inputDateObj.getMonth() !== currentDate.getMonth() || inputDateObj.getFullYear() !== currentDate.getFullYear()) {
+      currentDate = inputDateObj;
+      await fetchDataFromSheet();
+      return;
+    }
+
+    renderCalendar();
+    updateDailyView();
+    alert('已儲存。月報表會由後端延後重建。');
+  }
+
+  async function deleteRecord(id) {
+    if (!confirm('確定要刪除這筆紀錄嗎？')) return;
+
+    const recordToDelete = records.find(r => String(r.id) === String(id));
+    if (!recordToDelete) return;
+
+    const ok = await syncToSheet('delete', recordToDelete);
+    if (!ok) return;
+
+    records = records.filter(r => String(r.id) !== String(id));
+    renderCalendar();
+    updateDailyView();
+    resetForm();
+    alert('已刪除。月報表會由後端延後重建。');
+  }
+
+  function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    document.getElementById('monthYearDisplay').innerText = `${year}年 ${month + 1}月`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const calendarDays = document.getElementById('calendarDays');
+    const byDate = buildRecordsByDate(records);
+
+    let html = '';
+    let currentMonthTotal = 0;
+
+    for (let i = 0; i < firstDay; i++) {
+      html += '<div class="day-cell empty"></div>';
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dailyRecords = byDate[dateStr] || [];
+      const dailyIncome = dailyRecords.reduce((sum, r) => sum + (Number(r.totalIncome) || 0), 0);
+      currentMonthTotal += dailyIncome;
+
+      let detailsHtml = '<div class="day-detail-wrapper">';
+      dailyRecords.forEach(r => {
+        if (r.acQty > 0 || r.wmQty > 0 || r.customName) {
+          let engText = [];
+          if (r.location) engText.push(r.location);
+          if (r.acQty > 0) engText.push(`冷氣${r.acQty}`);
+          if (r.wmQty > 0) engText.push(`洗衣機${r.wmQty}`);
+          if (r.customName) engText.push(r.customName);
+          detailsHtml += `<div class="day-detail eng-block">${engText.join(' ')}</div>`;
+        }
+        if (r.mos > 0) detailsHtml += '<div class="day-detail" style="color:var(--mos);">摩斯</div>';
+        if (r.cleaning > 0 || String(r.itemString || '').includes('打掃')) {
+          detailsHtml += '<div class="day-detail" style="color:var(--clean);">打掃</div>';
+        }
+      });
+      detailsHtml += '</div>';
+
+      const isActive = dateStr === selectedDateString ? 'active' : '';
+      const incomeHtml = dailyIncome > 0 ? `<div class="day-income">$${dailyIncome}</div>` : '';
+      html += `
+        <div class="day-cell ${isActive}" onclick="selectDate('${dateStr}')">
+          <div class="day-date">${day}</div>
+          ${detailsHtml}
+          ${incomeHtml}
+        </div>
+      `;
+    }
+
+    calendarDays.innerHTML = html;
+    document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
+  }
+
+  function selectDate(dateStr) {
+    selectedDateString = dateStr;
+    document.getElementById('inputDate').value = dateStr;
+    renderCalendar();
+    updateDailyView();
+  }
+
+  function updateDailyView() {
+    document.getElementById('selectedDateTitle').innerText = `紀錄清單 (${selectedDateString})`;
+    const listContainer = document.getElementById('dailyRecords');
+    const dailyRecords = records.filter(r => r.date === selectedDateString);
+
+    let html = '';
+    let dailyTotal = 0;
+
+    if (dailyRecords.length === 0) {
+      html = '<p style="text-align:center; color:#666;">當日尚無紀錄</p>';
+    } else {
+      dailyRecords.forEach(r => {
+        dailyTotal += Number(r.totalIncome) || 0;
+        html += `
+          <div class="record-item">
+            <div class="record-actions">
+              <button class="btn-action btn-edit" onclick="editRecord('${String(r.id)}')">編輯</button>
+              <button class="btn-action btn-delete" onclick="deleteRecord('${String(r.id)}')">刪除</button>
+            </div>
+            <p class="record-title">${r.itemString}</p>
+            <p>單號：${r.orderNo || '無'}</p>
+            <p>總計：$${r.totalIncome} (工程:$${(Number(r.companyIncome) || 0) + (Number(r.privateIncome) || 0)}, 摩斯:$${Number(r.mos) || 0}, 打掃:$${Number(r.cleaning) || 0})</p>
+          </div>
+        `;
+      });
+    }
+
+    listContainer.innerHTML = html;
+    document.getElementById('dailyTotalDisplay').innerText = `當日總收入：$${dailyTotal}`;
+  }
+
+  document.getElementById('prevMonth').addEventListener('click', async () => {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    await fetchDataFromSheet();
+  });
+
+  document.getElementById('nextMonth').addEventListener('click', async () => {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    await fetchDataFromSheet();
+  });
+
+  async function syncToSheet(action, record) {
+    try {
+      showLoading(action === 'delete' ? '刪除資料中...' : '儲存資料中...');
+
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          action,
+          record,
+          originalYearMonth: record.originalYearMonth || getYearMonthFromDate(record.date)
+        })
+      });
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('伺服器回傳格式錯誤');
+      }
+
+      if (data.status !== 'success') {
+        throw new Error(data.message || '寫入失敗');
+      }
+
+      return true;
+    } catch (err) {
+      console.error('寫入失敗:', err);
+      alert(`同步失敗：${err.message}`);
+      return false;
+    } finally {
+      hideLoading();
     }
   }
-  return "";
-}
+</script>
+</body>
+</html>
 
-function findSummaryRow_(values) {
-  for (var i = 1; i < values.length; i++) {
-    if (
-      String(values[i][0]).indexOf("加總") !== -1 ||
-      String(values[i][2]).indexOf("加總") !== -1
-    ) {
-      return i + 1;
-    }
-  }
-  return -1;
-}
+async function fetchDataFromSheet() {
+  showLoading('讀取月份資料中...');
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth() + 1;
 
-/* =========================
-   組裝資料
-========================= */
-
-function buildRowData_(record) {
-  return [
-    record.date || "",                                                    // A 日期
-    record.orderNo || "",                                                 // B 單號
-    record.itemString || "",                                              // C 項目
-    Number(record.acQty) > 0 ? Number(record.acQty) : "",                 // D 冷氣
-    Number(record.wmQty) > 0 ? Number(record.wmQty) : "",                 // E 洗衣機
-    Number(record.companyIncome) > 0 ? Number(record.companyIncome) : "", // F 公司
-    Number(record.privateIncome) > 0 ? Number(record.privateIncome) : "", // G 私下
-    "",                                                                   // H 保留欄
-    Number(record.cleaning) > 0 ? Number(record.cleaning) : "",           // I 打掃
-    Number(record.mos) > 0 ? Number(record.mos) : "",                     // J 摩斯
-    "",                                                                   // K 保留/公式區
-    String(record.id || ""),                                              // L 隱藏ID
-    JSON.stringify(record)                                                // M 隱藏完整狀態
-  ];
-}
-
-/* =========================
-   快取與時間輔助
-========================= */
-
-function getCacheKey_(year, month) {
-  return "records_ym_" + Number(year) + "_" + Number(month);
-}
-
-function clearMonthCache_(year, month) {
-  CacheService.getScriptCache().remove(getCacheKey_(year, month));
-}
-
-function getYearMonthObj_(dateStr) {
-  if (!dateStr) return { year: 0, month: 0 };
-  var parts = String(dateStr).split("-");
-  if (parts.length >= 2) {
-    return { year: Number(parts[0]), month: Number(parts[1]) };
-  }
-  return { year: 0, month: 0 };
-}
-
-function getYearMonthStr_(dateStr) {
-  var ym = getYearMonthObj_(dateStr);
-  if (ym.month) return ym.year + "." + ym.month;
-  return "0.0";
-}
-
-/* =========================
-   通用工具
-========================= */
-
-function jsonOutput_(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function normalizeDateValue_(value) {
-  if (value === "" || value === null || value === undefined) return "";
-
-  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
-  }
-
-  var str = String(value).trim().replace(/\//g, "-");
-  var parts = str.split("-");
-  if (parts.length === 3) {
-    return parts[0] + "-" + String(parts[1]).padStart(2, "0") + "-" + String(parts[2]).padStart(2, "0");
-  }
-
-  return str;
-}
-
-function safeJsonParse_(text) {
-  if (!text) return {};
   try {
-    return JSON.parse(text);
-  } catch (e) {
-    return {};
+    const res = await fetch(`${GAS_URL}?year=${year}&month=${month}`);
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error(`後端沒有回傳 JSON，實際內容前 120 字：${text.slice(0, 120)}`);
+    }
+
+    records = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('讀取失敗', err);
+    alert(`無法讀取試算表資料：${err.message}`);
+    records = [];
+  } finally {
+    hideLoading();
+    renderCalendar();
+    updateDailyView();
   }
 }
