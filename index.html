@@ -61,6 +61,16 @@
 
     .item-card { border: 1px solid var(--border); border-radius: var(--card-border-radius); padding: var(--card-padding); margin: 0 20px var(--item-margin); background: var(--card-bg); }
     .item-card.disabled { opacity: 0.4; }
+    
+    /* 工程選項並排按鈕樣式 */
+    .eng-btn {
+      flex: 1; margin: 0; padding: 10px 0; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--card-border-radius);
+    }
+    .eng-btn.disabled { opacity: 0.4; }
+    .eng-btn input[type="checkbox"] { width: 18px; height: 18px; margin-right: 6px; accent-color: var(--primary); }
+    .eng-btn span { font-size: calc(var(--base-font-size) + 1px); font-weight: bold; color: var(--text); }
+
     .checkbox-group { display: flex; align-items: center; margin-bottom: 5px; }
     .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; margin-right: 10px; accent-color: var(--primary); }
     .checkbox-group label { font-size: calc(var(--base-font-size) + 1px); font-weight: bold; margin: 0; }
@@ -115,7 +125,7 @@
 
     <div style="padding: 10px 0;">
       <label style="display:flex; justify-content: space-between; color: var(--text); font-size: 14px;">
-        <span>紀錄與輸入字型大小</span>
+        <span>紀錄與輸入欄位字型</span>
         <span id="baseFontSizeDisplay">14px</span>
       </label>
       <input type="range" id="baseFontSizeRange" min="8" max="14" value="14" step="1">
@@ -129,7 +139,7 @@
 
 <div id="loadingOverlay">
   <div class="spinner"></div>
-  <div>PiuPiuPiu🍔...</div>
+  <div>正在與伺服器同步資料...</div>
 </div>
 
 <div class="container">
@@ -182,12 +192,24 @@
     <input type="text" id="inputLocation" placeholder="例如：南港、羅斯福路">
   </div>
 
-  <div class="item-card" id="cardAC">
-    <div class="checkbox-group">
+  <div style="display: flex; gap: 8px; margin: 0 20px var(--item-margin);">
+    <label class="eng-btn disabled" id="btnAC">
       <input type="checkbox" id="checkAC" onchange="toggleItem('AC')">
-      <label for="checkAC">冷氣</label>
-    </div>
-    <div class="item-details" id="detailsAC" style="display:none;">
+      <span>冷氣</span>
+    </label>
+    <label class="eng-btn disabled" id="btnWM">
+      <input type="checkbox" id="checkWM" onchange="toggleItem('WM')">
+      <span>洗衣機</span>
+    </label>
+    <label class="eng-btn disabled" id="btnCustom">
+      <input type="checkbox" id="checkCustom" onchange="toggleItem('Custom')">
+      <span>自訂</span>
+    </label>
+  </div>
+
+  <div class="item-card" id="cardAC" style="display:none;">
+    <div style="font-size: calc(var(--base-font-size) - 1px); color: #aaa; margin-bottom: 8px;">冷氣工程細節</div>
+    <div class="item-details" id="detailsAC" style="display:flex; margin-top:0;">
       <div><label>數量</label><input type="number" id="qtyAC" min="1" value="1"></div>
       <div>
         <label>薪資來源</label>
@@ -199,12 +221,9 @@
     </div>
   </div>
 
-  <div class="item-card" id="cardWM">
-    <div class="checkbox-group">
-      <input type="checkbox" id="checkWM" onchange="toggleItem('WM')">
-      <label for="checkWM">洗衣機</label>
-    </div>
-    <div class="item-details" id="detailsWM" style="display:none;">
+  <div class="item-card" id="cardWM" style="display:none;">
+    <div style="font-size: calc(var(--base-font-size) - 1px); color: #aaa; margin-bottom: 8px;">洗衣機工程細節</div>
+    <div class="item-details" id="detailsWM" style="display:flex; margin-top:0;">
       <div><label>數量</label><input type="number" id="qtyWM" min="1" value="1"></div>
       <div>
         <label>薪資來源</label>
@@ -216,12 +235,9 @@
     </div>
   </div>
 
-  <div class="item-card" id="cardCustom">
-    <div class="checkbox-group">
-      <input type="checkbox" id="checkCustom" onchange="toggleItem('Custom')">
-      <label for="checkCustom">自訂 / 特殊項目</label>
-    </div>
-    <div class="item-details" id="detailsCustom" style="display:none; flex-direction:column; gap:10px;">
+  <div class="item-card" id="cardCustom" style="display:none;">
+    <div style="font-size: calc(var(--base-font-size) - 1px); color: #aaa; margin-bottom: 8px;">自訂項目細節</div>
+    <div class="item-details" id="detailsCustom" style="display:flex; flex-direction:column; gap:10px; margin-top:0;">
       <div style="display:flex; gap:10px;">
         <div style="flex:1;"><label>項目名稱</label><input type="text" id="nameCustom" placeholder="例：拉線、洗洞"></div>
         <div style="flex:1;"><label>金額</label><input type="number" id="valCustom" value="0"></div>
@@ -240,7 +256,7 @@
   <div class="item-card" id="cardMOS">
     <div class="checkbox-group">
       <input type="checkbox" id="checkMOS" onchange="toggleItem('MOS')">
-      <label for="checkMOS">摩斯打烊班</label>
+      <label for="checkMOS">摩斯打烊班 (3小時)</label>
     </div>
     <div class="item-details" id="detailsMOS" style="display:none;">
       <div><label>當日薪資結算</label><input type="number" id="valMOS" value="588"></div>
@@ -250,7 +266,7 @@
   <div class="item-card" id="cardCleaning">
     <div class="checkbox-group">
       <input type="checkbox" id="checkCleaning" onchange="toggleItem('Cleaning')">
-      <label for="checkCleaning">打掃</label>
+      <label for="checkCleaning">打掃 (月薪制，單日不計入總額)</label>
     </div>
     <div class="item-details" id="detailsCleaning" style="display:none;">
       <div><label>紀錄金額 (預設0)</label><input type="number" id="valCleaning" value="0"></div>
@@ -338,8 +354,14 @@
 
   function toggleItem(type) {
     const isChecked = document.getElementById(`check${type}`).checked;
-    document.getElementById(`details${type}`).style.display = isChecked ? 'flex' : 'none';
-    document.getElementById(`card${type}`).classList.toggle('disabled', !isChecked);
+    
+    if (type === 'AC' || type === 'WM' || type === 'Custom') {
+      document.getElementById(`btn${type}`).classList.toggle('disabled', !isChecked);
+      document.getElementById(`card${type}`).style.display = isChecked ? 'block' : 'none';
+    } else {
+      document.getElementById(`details${type}`).style.display = isChecked ? 'flex' : 'none';
+      document.getElementById(`card${type}`).classList.toggle('disabled', !isChecked);
+    }
   }
 
   function formatDate(date) {
@@ -473,7 +495,7 @@
       return;
     }
     if ((hasAC || hasWM || hasCustom) && (!time || !location)) {
-      alert("案件請選擇時間並填寫地點");
+      alert("工程案件請選擇時間並填寫地點");
       return;
     }
 
@@ -577,8 +599,7 @@
   }
 
   async function deleteRecord(id) {
-    if (!confirm("確定要刪除這筆紀錄嗎？")) return;
-
+    // 已移除 confirm 判斷，點擊即刪除
     const recordToDelete = records.find(r => String(r.id) === String(id));
     if (!recordToDelete) return;
 
