@@ -11,14 +11,19 @@
     :root {
       --primary: #E67E22; --primary-dark: #D35400; --bg: #121212; --card-bg: #1E1E1E;
       --border: #333333; --text: #E0E0E0; --danger: #E74C3C; --mos: #3498DB; --clean: #2ECC71;
-      /* 動態排版變數 */
+      
+      /* 固定為緊湊風格 */
+      --card-padding: 8px;
+      --item-margin: 8px;
+      --input-padding: 6px;
+      
+      /* 固定為圓潤風格 */
+      --card-border-radius: 16px;
+      --input-border-radius: 8px;
+      
+      /* 動態字體大小變數 */
       --base-font-size: 14px;
       --cal-font-size: 11px;
-      --card-padding: 15px;
-      --item-margin: 12px;
-      --card-border-radius: 6px;
-      --input-padding: 10px;
-      --input-border-radius: 4px;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; }
     .container { max-width: 600px; margin: 0 auto; background: var(--bg); min-height: 100vh; padding-bottom: 50px; }
@@ -79,9 +84,8 @@
 
     /* 設定視窗樣式 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-content { background: var(--card-bg); padding: 20px; border-radius: 8px; width: 80%; max-width: 320px; border: 1px solid var(--border); }
+    .modal-content { background: var(--card-bg); padding: 20px; border-radius: 12px; width: 80%; max-width: 320px; border: 1px solid var(--border); }
     .modal-content input[type="range"] { width: 100%; margin-top: 10px; accent-color: var(--primary); }
-    .modal-select { width: 100%; padding: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 14px; margin-top: 5px; }
 
     #loadingOverlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -103,28 +107,18 @@
     
     <div style="padding: 10px 0;">
       <label style="display:flex; justify-content: space-between; color: var(--text); font-size: 14px;">
-        <span>整體字體大小</span>
-        <span id="fontSizeDisplay">14px</span>
+        <span>月曆字型大小</span>
+        <span id="calFontSizeDisplay">11px</span>
       </label>
-      <input type="range" id="fontSizeRange" min="12" max="20" value="14" step="1">
+      <input type="range" id="calFontSizeRange" min="6" max="14" value="11" step="1">
     </div>
 
     <div style="padding: 10px 0;">
-      <label style="display:block; color: var(--text); font-size: 14px;">版面間距</label>
-      <select id="spacingSelect" class="modal-select">
-        <option value="compact">緊湊</option>
-        <option value="normal">適中</option>
-        <option value="loose">寬鬆</option>
-      </select>
-    </div>
-
-    <div style="padding: 10px 0;">
-      <label style="display:block; color: var(--text); font-size: 14px;">邊框圓角</label>
-      <select id="borderRadiusSelect" class="modal-select">
-        <option value="square">方正</option>
-        <option value="normal">適中</option>
-        <option value="round">圓潤</option>
-      </select>
+      <label style="display:flex; justify-content: space-between; color: var(--text); font-size: 14px;">
+        <span>紀錄與輸入欄位字型</span>
+        <span id="baseFontSizeDisplay">14px</span>
+      </label>
+      <input type="range" id="baseFontSizeRange" min="8" max="14" value="14" step="1">
     </div>
 
     <div style="text-align: right; margin-top: 20px;">
@@ -135,7 +129,7 @@
 
 <div id="loadingOverlay">
   <div class="spinner"></div>
-  <div>正在與伺服器同步資料...</div>
+  <div>傳送中...</div>
 </div>
 
 <div class="container">
@@ -144,7 +138,7 @@
     <div>工作曆與收入管理</div>
     <button class="settings-btn" onclick="openSettings()" aria-label="設定">
       <svg viewBox="0 0 24 24">
-        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
       </svg>
     </button>
   </header>
@@ -191,7 +185,7 @@
   <div class="item-card" id="cardAC">
     <div class="checkbox-group">
       <input type="checkbox" id="checkAC" onchange="toggleItem('AC')">
-      <label for="checkAC">冷氣工程</label>
+      <label for="checkAC">冷氣</label>
     </div>
     <div class="item-details" id="detailsAC" style="display:none;">
       <div><label>數量</label><input type="number" id="qtyAC" min="1" value="1"></div>
@@ -208,7 +202,7 @@
   <div class="item-card" id="cardWM">
     <div class="checkbox-group">
       <input type="checkbox" id="checkWM" onchange="toggleItem('WM')">
-      <label for="checkWM">洗衣機工程</label>
+      <label for="checkWM">洗衣機</label>
     </div>
     <div class="item-details" id="detailsWM" style="display:none;">
       <div><label>數量</label><input type="number" id="qtyWM" min="1" value="1"></div>
@@ -246,7 +240,7 @@
   <div class="item-card" id="cardMOS">
     <div class="checkbox-group">
       <input type="checkbox" id="checkMOS" onchange="toggleItem('MOS')">
-      <label for="checkMOS">摩斯打烊班 </label>
+      <label for="checkMOS">摩斯打烊班 (3小時)</label>
     </div>
     <div class="item-details" id="detailsMOS" style="display:none;">
       <div><label>當日薪資結算</label><input type="number" id="valMOS" value="588"></div>
@@ -270,9 +264,6 @@
 </div>
 
 <script>
-  // 請填入您最新的部署網址
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbwqtNhpK12p_lcPHf6rZtXOuZcwfsZIAbXIFA0Uvansf_S4wdNHd4RyLUW7jCuj83Zj/exec";
-
   let records = [];
   let currentDate = new Date();
   let selectedDateString = formatDate(currentDate);
@@ -294,7 +285,6 @@
       });
     }
 
-    // 初始化版面與字體設定
     initSettings();
     fetchDataFromSheet();
   });
@@ -309,57 +299,31 @@
   }
 
   function initSettings() {
-    const savedFontSize = localStorage.getItem('baseFontSize') || '14';
-    const savedSpacing = localStorage.getItem('layoutSpacing') || 'normal';
-    const savedRadius = localStorage.getItem('borderRadius') || 'normal';
+    const savedCalFontSize = localStorage.getItem('calFontSize') || '11';
+    const savedBaseFontSize = localStorage.getItem('baseFontSize') || '14';
 
-    applyFontSize(savedFontSize);
-    applySpacing(savedSpacing);
-    applyBorderRadius(savedRadius);
+    applyCalFontSize(savedCalFontSize);
+    applyBaseFontSize(savedBaseFontSize);
 
-    const fontSizeRange = document.getElementById('fontSizeRange');
-    fontSizeRange.value = savedFontSize;
-    fontSizeRange.addEventListener('input', e => applyFontSize(e.target.value));
+    const calFontSizeRange = document.getElementById('calFontSizeRange');
+    calFontSizeRange.value = savedCalFontSize;
+    calFontSizeRange.addEventListener('input', e => applyCalFontSize(e.target.value));
 
-    const spacingSelect = document.getElementById('spacingSelect');
-    spacingSelect.value = savedSpacing;
-    spacingSelect.addEventListener('change', e => applySpacing(e.target.value));
-
-    const borderRadiusSelect = document.getElementById('borderRadiusSelect');
-    borderRadiusSelect.value = savedRadius;
-    borderRadiusSelect.addEventListener('change', e => applyBorderRadius(e.target.value));
+    const baseFontSizeRange = document.getElementById('baseFontSizeRange');
+    baseFontSizeRange.value = savedBaseFontSize;
+    baseFontSizeRange.addEventListener('input', e => applyBaseFontSize(e.target.value));
   }
 
-  function applyFontSize(size) {
+  function applyCalFontSize(size) {
+    document.documentElement.style.setProperty('--cal-font-size', size + 'px');
+    document.getElementById('calFontSizeDisplay').innerText = size + 'px';
+    localStorage.setItem('calFontSize', size);
+  }
+
+  function applyBaseFontSize(size) {
     document.documentElement.style.setProperty('--base-font-size', size + 'px');
-    document.documentElement.style.setProperty('--cal-font-size', (parseInt(size) - 3) + 'px');
-    document.getElementById('fontSizeDisplay').innerText = size + 'px';
+    document.getElementById('baseFontSizeDisplay').innerText = size + 'px';
     localStorage.setItem('baseFontSize', size);
-  }
-
-  function applySpacing(mode) {
-    let padding = '15px', margin = '12px', inputPad = '10px';
-    if (mode === 'compact') {
-      padding = '8px'; margin = '8px'; inputPad = '6px';
-    } else if (mode === 'loose') {
-      padding = '20px'; margin = '18px'; inputPad = '14px';
-    }
-    document.documentElement.style.setProperty('--card-padding', padding);
-    document.documentElement.style.setProperty('--item-margin', margin);
-    document.documentElement.style.setProperty('--input-padding', inputPad);
-    localStorage.setItem('layoutSpacing', mode);
-  }
-
-  function applyBorderRadius(mode) {
-    let radius = '6px', inputRadius = '4px';
-    if (mode === 'square') {
-      radius = '2px'; inputRadius = '2px';
-    } else if (mode === 'round') {
-      radius = '16px'; inputRadius = '8px';
-    }
-    document.documentElement.style.setProperty('--card-border-radius', radius);
-    document.documentElement.style.setProperty('--input-border-radius', inputRadius);
-    localStorage.setItem('borderRadius', mode);
   }
   // ==============================
 
@@ -506,7 +470,7 @@
       return;
     }
     if ((hasAC || hasWM || hasCustom) && (!time || !location)) {
-      alert("工程案件請選擇時間並填寫地點");
+      alert("案件請選擇時間並填寫地點");
       return;
     }
 
