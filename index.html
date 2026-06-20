@@ -34,19 +34,33 @@
     .settings-btn { background: none; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; }
     .settings-btn svg { width: 24px; height: 24px; fill: var(--primary); }
 
+    /* 收合按鈕樣式 */
+    .toggle-cal-btn { display: flex; justify-content: center; align-items: center; gap: 6px; background: #1a1a1a; padding: 12px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: bold; color: #aaa; transition: background 0.2s; }
+    .toggle-cal-btn:active { background: #2a2a2a; }
+    .toggle-cal-btn svg { width: 14px; height: 14px; fill: currentColor; transition: transform 0.3s; }
+    .toggle-cal-btn.collapsed svg { transform: rotate(-180deg); }
+    
+    /* 月曆區塊容器 */
+    #calendarWrapper { overflow: hidden; display: block; }
+    #calendarWrapper.collapsed { display: none; }
+
     .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; font-weight: bold; background: var(--card-bg); border-bottom: 1px solid var(--border); font-size: calc(var(--base-font-size) + 1px); }
     .calendar-header button { background: none; border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; color: var(--text); cursor: pointer; font-size: calc(var(--base-font-size) - 1px); }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
     .day-name { background: #1a1a1a; text-align: center; padding: 8px 0; font-size: 12px; font-weight: bold; color: #888; }
 
-    .day-cell { background: var(--card-bg); min-height: 65px; padding: 4px; cursor: pointer; display: flex; flex-direction: column; overflow: hidden; }
+    .day-cell { background: var(--card-bg); min-height: 65px; padding: 4px; cursor: pointer; display: flex; flex-direction: column; overflow: hidden; position: relative; }
     .day-cell.active { background: #2A2A2A; box-shadow: inset 0 0 0 1.5px var(--primary); }
     .day-cell.empty { background: #111; }
-    .day-date { font-size: 13px; margin-bottom: 2px; color: #aaa; }
+    .day-date { font-size: 13px; margin-bottom: 2px; color: #aaa; text-align: left; }
 
-    .day-detail-wrapper { margin-top: 2px; flex-grow: 1; overflow-y: auto; }
-    .day-detail { font-size: var(--cal-font-size); line-height: 1.3; text-align: center; margin-bottom: 3px; white-space: normal; word-break: break-all; font-weight: bold; }
-    .eng-block { background-color: rgba(230, 126, 34, 0.15); color: var(--primary); border-radius: 4px; padding: 2px 1px; }
+    /* 圓點視覺提示樣式 */
+    .dots-wrapper { display: flex; gap: 4px; justify-content: center; align-items: center; flex-grow: 1; flex-wrap: wrap; padding: 2px 0; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-eng { background-color: var(--primary); }
+    .dot-mos { background-color: var(--mos); }
+    .dot-clean { background-color: var(--clean); }
+
     .day-income { font-size: 10px; color: #aaa; text-align: right; border-top: 1px solid var(--border); padding-top: 2px; margin-top: auto; }
 
     .section-title { font-size: calc(var(--base-font-size) + 1px); font-weight: bold; margin: 20px 20px 10px; border-left: 3px solid var(--primary); padding-left: 8px; color: var(--text); }
@@ -62,9 +76,8 @@
     .item-card { border: 1px solid var(--border); border-radius: var(--card-border-radius); padding: var(--card-padding); margin: 0 20px var(--item-margin); background: var(--card-bg); }
     .item-card.disabled { opacity: 0.4; }
     
-    /* 選項並排按鈕基礎樣式 */
     .eng-btn {
-      flex: 1; margin: 0; padding: var(--input-padding) 0; display: flex; align-items: center; justify-content: center;
+      flex: 1; margin: 0; padding: 10px 0; display: flex; align-items: center; justify-content: center;
       cursor: pointer; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--card-border-radius);
     }
     .eng-btn.disabled { opacity: 0.4; }
@@ -89,7 +102,6 @@
 
     .daily-summary { padding: 10px 20px; text-align: right; font-weight: bold; font-size: calc(var(--base-font-size) + 1px); color: var(--primary); border-bottom: 1px dashed var(--border); margin-bottom: 20px; }
 
-    /* 設定視窗樣式 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
     .modal-content { background: var(--card-bg); padding: 20px; border-radius: 12px; width: 80%; max-width: 320px; border: 1px solid var(--border); }
     .modal-content input[type="range"] { width: 100%; margin-top: 10px; accent-color: var(--primary); }
@@ -111,15 +123,6 @@
 <div id="settingsModal" class="modal-overlay">
   <div class="modal-content">
     <h3 style="margin-top:0; color:var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px;">版面與外觀設定</h3>
-    
-    <div style="padding: 10px 0;">
-      <label style="display:flex; justify-content: space-between; color: var(--text); font-size: 14px;">
-        <span>月曆字型大小</span>
-        <span id="calFontSizeDisplay">11px</span>
-      </label>
-      <input type="range" id="calFontSizeRange" min="6" max="14" value="11" step="1">
-    </div>
-
     <div style="padding: 10px 0;">
       <label style="display:flex; justify-content: space-between; color: var(--text); font-size: 14px;">
         <span>紀錄與輸入欄位字型</span>
@@ -127,7 +130,6 @@
       </label>
       <input type="range" id="baseFontSizeRange" min="8" max="14" value="14" step="1">
     </div>
-
     <div style="text-align: right; margin-top: 20px;">
       <button class="btn-submit" style="padding: 8px 15px; font-size:14px; flex:none; width:auto;" onclick="closeSettings()">完成</button>
     </div>
@@ -136,7 +138,7 @@
 
 <div id="loadingOverlay">
   <div class="spinner"></div>
-  <div>PiuPiuPiu🍔...</div>
+  <div>讀取資料中...</div>
 </div>
 
 <div class="container">
@@ -150,16 +152,23 @@
     </button>
   </header>
 
-  <div class="calendar-header">
-    <button id="prevMonth">◀ 上個月</button>
-    <span id="monthYearDisplay">2026年 6月</span>
-    <button id="nextMonth">下個月 ▶</button>
+  <div class="toggle-cal-btn" id="toggleCalBtn" onclick="toggleCalendar()">
+    <span id="toggleCalText">收合月曆</span>
+    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
   </div>
-  <div class="calendar-grid">
-    <div class="day-name">日</div><div class="day-name">一</div><div class="day-name">二</div>
-    <div class="day-name">三</div><div class="day-name">四</div><div class="day-name">五</div><div class="day-name">六</div>
+
+  <div id="calendarWrapper">
+    <div class="calendar-header">
+      <button id="prevMonth">◀ 上個月</button>
+      <span id="monthYearDisplay">2026年 6月</span>
+      <button id="nextMonth">下個月 ▶</button>
+    </div>
+    <div class="calendar-grid">
+      <div class="day-name">日</div><div class="day-name">一</div><div class="day-name">二</div>
+      <div class="day-name">三</div><div class="day-name">四</div><div class="day-name">五</div><div class="day-name">六</div>
+    </div>
+    <div class="calendar-grid" id="calendarDays"></div>
   </div>
-  <div class="calendar-grid" id="calendarDays"></div>
 
   <div class="monthly-total" id="monthlyTotalDisplay">本月累計總收入：$0</div>
 
@@ -282,6 +291,7 @@
 </div>
 
 <script>
+  // 請確認這裡的 GAS_URL 是你最新部署的網址
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwqtNhpK12p_lcPHf6rZtXOuZcwfsZIAbXIFA0Uvansf_S4wdNHd4RyLUW7jCuj83Zj/exec";
 
   let records = [];
@@ -289,6 +299,7 @@
   let selectedDateString = formatDate(currentDate);
   let editingId = null;
   let editingOriginalYearMonth = null; 
+  let isCalendarCollapsed = false;
 
   const RATE_COMPANY = 1000;
   const RATE_PRIVATE = 1500;
@@ -309,6 +320,24 @@
     fetchDataFromSheet();
   });
 
+  // ========== 月曆收合功能 ==========
+  function toggleCalendar() {
+    isCalendarCollapsed = !isCalendarCollapsed;
+    const wrapper = document.getElementById('calendarWrapper');
+    const btn = document.getElementById('toggleCalBtn');
+    const text = document.getElementById('toggleCalText');
+    
+    if (isCalendarCollapsed) {
+      wrapper.classList.add('collapsed');
+      btn.classList.add('collapsed');
+      text.innerText = "展開月曆";
+    } else {
+      wrapper.classList.remove('collapsed');
+      btn.classList.remove('collapsed');
+      text.innerText = "收合月曆";
+    }
+  }
+
   // ========== 設定功能 ==========
   function openSettings() {
     document.getElementById('settingsModal').style.display = 'flex';
@@ -319,25 +348,12 @@
   }
 
   function initSettings() {
-    const savedCalFontSize = localStorage.getItem('calFontSize') || '11';
     const savedBaseFontSize = localStorage.getItem('baseFontSize') || '14';
-
-    applyCalFontSize(savedCalFontSize);
     applyBaseFontSize(savedBaseFontSize);
-
-    const calFontSizeRange = document.getElementById('calFontSizeRange');
-    calFontSizeRange.value = savedCalFontSize;
-    calFontSizeRange.addEventListener('input', e => applyCalFontSize(e.target.value));
 
     const baseFontSizeRange = document.getElementById('baseFontSizeRange');
     baseFontSizeRange.value = savedBaseFontSize;
     baseFontSizeRange.addEventListener('input', e => applyBaseFontSize(e.target.value));
-  }
-
-  function applyCalFontSize(size) {
-    document.documentElement.style.setProperty('--cal-font-size', size + 'px');
-    document.getElementById('calFontSizeDisplay').innerText = size + 'px';
-    localStorage.setItem('calFontSize', size);
   }
 
   function applyBaseFontSize(size) {
@@ -355,8 +371,6 @@
 
   function toggleItem(type) {
     const isChecked = document.getElementById(`check${type}`).checked;
-    
-    // 將五個項目統一納入按鈕與卡片切換邏輯中
     if (type === 'AC' || type === 'WM' || type === 'Custom' || type === 'MOS' || type === 'Cleaning') {
       document.getElementById(`btn${type}`).classList.toggle('disabled', !isChecked);
       document.getElementById(`card${type}`).style.display = isChecked ? 'block' : 'none';
@@ -613,6 +627,7 @@
     resetForm();
   }
 
+  // ========== 月曆渲染核心邏輯更新 ==========
   function renderCalendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -635,31 +650,31 @@
       const dailyIncome = dailyRecords.reduce((sum, r) => sum + (Number(r.totalIncome) || 0), 0);
       currentMonthTotal += dailyIncome;
 
-      let detailsHtml = '<div class="day-detail-wrapper">';
+      // 檢查當日包含的工作類型，決定是否顯示對應顏色的圓點
+      let hasEng = false;
+      let hasMos = false;
+      let hasClean = false;
+
       dailyRecords.forEach(r => {
-        if (r.acQty > 0 || r.wmQty > 0 || r.customName) {
-          let engText = [];
-          if (r.location) engText.push(r.location);
-          if (r.acQty > 0) engText.push(`冷氣${r.acQty}`);
-          if (r.wmQty > 0) engText.push(`洗衣機${r.wmQty}`);
-          if (r.customName) engText.push(r.customName);
-          
-          detailsHtml += `<div class="day-detail eng-block">${engText.join(' ')}</div>`;
-        }
-        if (r.mos > 0) detailsHtml += `<div class="day-detail" style="color:var(--mos);">摩斯</div>`;
-        if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) {
-          detailsHtml += `<div class="day-detail" style="color:var(--clean);">打掃</div>`;
-        }
+        if (r.acQty > 0 || r.wmQty > 0 || r.customName) hasEng = true;
+        if (r.mos > 0) hasMos = true;
+        if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) hasClean = true;
       });
-      detailsHtml += '</div>';
+
+      let dotsHtml = '<div class="dots-wrapper">';
+      if (hasEng) dotsHtml += '<div class="status-dot dot-eng"></div>';
+      if (hasMos) dotsHtml += '<div class="status-dot dot-mos"></div>';
+      if (hasClean) dotsHtml += '<div class="status-dot dot-clean"></div>';
+      dotsHtml += '</div>';
 
       const isActive = dateStr === selectedDateString ? 'active' : '';
       const incomeHtml = dailyIncome > 0 ? `<div class="day-income">$${dailyIncome}</div>` : '';
 
+      // 將文字細節替換為 dotsHtml 圓點提示
       calendarDays.innerHTML += `
         <div class="day-cell ${isActive}" onclick="selectDate('${dateStr}')">
           <div class="day-date">${day}</div>
-          ${detailsHtml}
+          ${dotsHtml}
           ${incomeHtml}
         </div>
       `;
@@ -678,22 +693,7 @@
   function updateDailyView() {
     document.getElementById('selectedDateTitle').innerText = `紀錄清單 (${selectedDateString})`;
     const listContainer = document.getElementById('dailyRecords');
-    
-    // 取得當日紀錄
-    let dailyRecords = records.filter(r => r.date === selectedDateString);
-
-    // 【新增邏輯】依照時間從早到晚排序
-    dailyRecords.sort((a, b) => {
-      // 擷取 itemString 中第一個符合 HH:MM 格式的文字
-      const matchA = a.itemString && a.itemString.match(/(\d{2}:\d{2})/);
-      const matchB = b.itemString && b.itemString.match(/(\d{2}:\d{2})/);
-      
-      // 若有找到時間則使用該時間，若沒有則給予 "24:00" 讓它排在清單最下方
-      const timeA = matchA ? matchA[1] : "24:00";
-      const timeB = matchB ? matchB[1] : "24:00";
-      
-      return timeA.localeCompare(timeB);
-    });
+    const dailyRecords = records.filter(r => r.date === selectedDateString);
 
     listContainer.innerHTML = '';
     let dailyTotal = 0;
