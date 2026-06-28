@@ -279,7 +279,7 @@
   <div class="item-card" id="cardCleaning" style="display:none;">
     <div style="font-size: calc(var(--base-font-size) - 1px); color: #aaa; margin-bottom: 8px;">打掃紀錄</div>
     <div class="item-details" id="detailsCleaning" style="display:flex; margin-top:0;">
-      <div><label>紀錄金額 (預設0)</label><input type="number" id="valCleaning" value="0"></div>
+      <div><label>紀錄金額 (預設0，月薪制勿重複加疊)</label><input type="number" id="valCleaning" value="0"></div>
     </div>
   </div>
 
@@ -420,7 +420,6 @@
 
     resetForm(); 
     
-    // 編輯模式下隱藏多日期選擇按鈕
     const btnAddDate = document.querySelector('.btn-add-date');
     if (btnAddDate) btnAddDate.style.display = 'none'; 
     
@@ -445,7 +444,6 @@
     editingId = null;
     editingOriginalYearMonth = null;
 
-    // 還原日期輸入框為單一狀態
     const container = document.getElementById('dateInputsContainer');
     container.innerHTML = `
       <div class="date-input-row" style="display:flex; gap:8px; align-items:center;">
@@ -506,7 +504,6 @@
     const recordsToSave = [];
     const isEdit = !!editingId;
 
-    // 將同筆表單資訊批次套用給選定的所有日期
     for (let i = 0; i < dates.length; i++) {
       const date = dates[i];
       let acQty = 0, wmQty = 0, customVal = 0, companyIncome = 0, privateIncome = 0, mosIncome = 0, cleaningIncome = 0;
@@ -546,7 +543,8 @@
       }
 
       if (hasCleaning) {
-        cleaningIncome = parseInt(document.getElementById('valCleaning').value, 10) || 0;
+        // ★ 月薪制防呆：如果你輸入了金額（例如 14500）並批次新增多天，系統只會在「第一筆」存入金額，其餘記 0
+        cleaningIncome = (i === 0) ? (parseInt(document.getElementById('valCleaning').value, 10) || 0) : 0;
         let cleanTime = time ? time : "10:00"; 
         itemStringParts.push(`${cleanTime} 打掃`);
       }
@@ -577,7 +575,6 @@
       });
     }
 
-    // 將資料同步至伺服器
     if (isEdit) {
       const ok = await syncToSheet('edit', recordsToSave[0]);
       if (!ok) return;
@@ -629,24 +626,25 @@
   }
 
   function renderCalendar() {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth(); // 0 是 1月, 5 是 6月, 6 是 7月
-    document.getElementById('monthYearDisplay').innerText = `${year}年 ${month + 1}月`;
+    const currentYear = currentDate.getFullYear();
+    const currentMonthIndex = currentDate.getMonth(); 
+    const displayMonth = currentMonthIndex + 1; 
 
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    document.getElementById('monthYearDisplay').innerText = `${currentYear}年 ${displayMonth}月`;
+
+    const firstDay = new Date(currentYear, currentMonthIndex, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
     const calendarDays = document.getElementById('calendarDays');
     calendarDays.innerHTML = '';
 
     let currentMonthTotal = 0;
-    let monthHasCleaning = false; 
 
     for (let i = 0; i < firstDay; i++) {
       calendarDays.innerHTML += `<div class="day-cell empty"></div>`;
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dateStr = `${currentYear}-${String(displayMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const dailyRecords = records.filter(r => r.date === dateStr);
       const dailyIncome = dailyRecords.reduce((sum, r) => sum + (Number(r.totalIncome) || 0), 0);
       currentMonthTotal += dailyIncome;
@@ -660,7 +658,6 @@
         if (r.mos > 0) hasMos = true;
         if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) {
           hasClean = true;
-          monthHasCleaning = true; 
         }
       });
 
@@ -682,17 +679,8 @@
       `;
     }
 
-    // ★ 依據目前的年份和月份判斷打掃薪水（7月以後為 14500，其餘為 7500）
-    let cleaningSalary = 7500;
-    if (year > 2026 || (year === 2026 && month >= 6)) {
-      cleaningSalary = 14500;
-    }
-
-    let monthlyDisplay = `本月累計總收入：$${currentMonthTotal}`;
-    if (monthHasCleaning) {
-      monthlyDisplay = `本月累計總收入：$${currentMonthTotal + cleaningSalary} `;
-    }
-    document.getElementById('monthlyTotalDisplay').innerText = monthlyDisplay;
+    // ★ 移除背後自作聰明加回去的邏輯，直接顯示陣列真正的總額
+    document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
   }
 
   function selectDate(dateStr) {
