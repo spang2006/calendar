@@ -367,6 +367,7 @@
     return parts[0] + "." + Number(parts[1]);
   }
 
+  // 修改：修正原本程式碼中 checkCleaning 對應到舊變數 detailsCleaning 的 Bug
   function toggleItem(type) {
     const isChecked = document.getElementById(`check${type}`).checked;
     if (type === 'AC' || type === 'WM' || type === 'Custom' || type === 'MOS' || type === 'Cleaning') {
@@ -477,6 +478,7 @@
     updateDailyView();
   }
 
+  // 更新：更新 renderCalendar 邏輯，自動根據月份加入打掃月薪加總
   function renderCalendar() {
     const currentYear = currentDate.getFullYear();
     const currentMonthIndex = currentDate.getMonth(); 
@@ -490,6 +492,7 @@
     calendarDays.innerHTML = '';
 
     let currentMonthTotal = 0;
+    let hasCleaningThisMonth = false; // 用來追蹤當月是否包含任何打掃行程
 
     for (let i = 0; i < firstDay; i++) {
       calendarDays.innerHTML += `<div class="day-cell empty"></div>`;
@@ -508,7 +511,10 @@
       dailyRecords.forEach(r => {
         if (r.acQty > 0 || r.wmQty > 0 || r.customName) hasEng = true;
         if (r.mos > 0) hasMos = true;
-        if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) hasClean = true;
+        if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) {
+          hasClean = true;
+          hasCleaningThisMonth = true; 
+        }
       });
 
       let dotsHtml = '<div class="dots-wrapper">';
@@ -528,6 +534,13 @@
           ${incomeHtml}
         </div>
       `;
+    }
+
+    // 當月有打掃行程時，動態判斷分水嶺月薪加入總收入
+    if (hasCleaningThisMonth) {
+      const isAfterJuly = (currentYear > 2026) || (currentYear === 2026 && displayMonth >= 7);
+      const cleaningMonthlySalary = isAfterJuly ? 14500 : 7500;
+      currentMonthTotal += cleaningMonthlySalary;
     }
 
     document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
@@ -700,7 +713,7 @@
       }
 
       if (hasCleaning) {
-        // ★ 月薪制防呆：若多天選取，只在「第一筆」紀錄打掃金額
+        // 月薪制防呆：若多天選取，只在「第一筆」紀錄打掃金額
         cleaningIncome = (i === 0) ? (parseInt(document.getElementById('valCleaning').value, 10) || 0) : 0;
         let cleanTime = time ? time : "10:00"; 
         itemStringParts.push(`${cleanTime} 打掃`);
