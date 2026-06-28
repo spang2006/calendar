@@ -690,7 +690,7 @@
 
     let monthlyDisplay = `本月累計總收入：$${currentMonthTotal}`;
     if (monthHasCleaning) {
-      monthlyDisplay = `本月累計總收入：$${currentMonthTotal + cleaningSalary} )`;
+      monthlyDisplay = `本月累計總收入：$${currentMonthTotal + cleaningSalary} `;
     }
     document.getElementById('monthlyTotalDisplay').innerText = monthlyDisplay;
   }
