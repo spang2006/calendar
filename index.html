@@ -290,6 +290,7 @@
 </div>
 
 <script>
+  // 請確認這裡的 GAS_URL 是你最新部署的網址
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwqtNhpK12p_lcPHf6rZtXOuZcwfsZIAbXIFA0Uvansf_S4wdNHd4RyLUW7jCuj83Zj/exec";
 
   let records = [];
@@ -301,7 +302,6 @@
 
   const RATE_COMPANY = 1000;
   const RATE_PRIVATE = 1500;
-  const MONTHLY_CLEANING_SALARY = 14500; // 打掃月薪預設額度
 
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('inputDate').value = selectedDateString;
@@ -547,7 +547,7 @@
 
       if (hasCleaning) {
         cleaningIncome = parseInt(document.getElementById('valCleaning').value, 10) || 0;
-        let cleanTime = time ? time : "10:00"; // ★ 修正時間固定的問題：若未選擇，預設為10:00，否則採用設定值
+        let cleanTime = time ? time : "10:00"; 
         itemStringParts.push(`${cleanTime} 打掃`);
       }
 
@@ -579,13 +579,11 @@
 
     // 將資料同步至伺服器
     if (isEdit) {
-      // 編輯模式永遠只處理單筆
       const ok = await syncToSheet('edit', recordsToSave[0]);
       if (!ok) return;
       const idx = records.findIndex(r => String(r.id) === String(editingId));
       if (idx !== -1) records[idx] = { ...recordsToSave[0], originalYearMonth: getYearMonthFromDate(recordsToSave[0].date) };
     } else {
-      // 依據陣列大小決定要單筆呼叫還是批次呼叫
       if (recordsToSave.length === 1) {
         const ok = await syncToSheet('add', recordsToSave[0]);
         if (!ok) return;
@@ -601,7 +599,6 @@
 
     resetForm();
 
-    // 完成後讓檢視回到處理陣列的首日
     selectedDateString = dates[0];
     const inputDateObj = new Date(dates[0]);
 
@@ -633,7 +630,7 @@
 
   function renderCalendar() {
     const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
+    const month = currentDate.getMonth(); // 0 是 1月, 5 是 6月, 6 是 7月
     document.getElementById('monthYearDisplay').innerText = `${year}年 ${month + 1}月`;
 
     const firstDay = new Date(year, month, 1).getDay();
@@ -663,7 +660,7 @@
         if (r.mos > 0) hasMos = true;
         if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) {
           hasClean = true;
-          monthHasCleaning = true; // ★ 偵測該月是否有過打掃記錄
+          monthHasCleaning = true; 
         }
       });
 
@@ -685,10 +682,15 @@
       `;
     }
 
-    // ★ 依據是否有打掃計算月薪總計顯示
+    // ★ 依據目前的年份和月份判斷打掃薪水（7月以後為 14500，其餘為 7500）
+    let cleaningSalary = 7500;
+    if (year > 2026 || (year === 2026 && month >= 6)) {
+      cleaningSalary = 14500;
+    }
+
     let monthlyDisplay = `本月累計總收入：$${currentMonthTotal}`;
     if (monthHasCleaning) {
-      monthlyDisplay = `本月累計總收入：$${currentMonthTotal + MONTHLY_CLEANING_SALARY} (含打掃月薪 $${MONTHLY_CLEANING_SALARY.toLocaleString()})`;
+      monthlyDisplay = `本月累計總收入：$${currentMonthTotal + cleaningSalary} )`;
     }
     document.getElementById('monthlyTotalDisplay').innerText = monthlyDisplay;
   }
