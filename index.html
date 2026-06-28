@@ -67,6 +67,11 @@
       border-radius: var(--input-border-radius); box-sizing: border-box; font-size: calc(var(--base-font-size) + 1px);
     }
 
+    /* 日期選擇標籤樣式 */
+    .date-pill { background: var(--primary); color: #fff; padding: 6px 12px; border-radius: 16px; font-size: 13px; display: flex; align-items: center; gap: 6px; font-weight: bold; }
+    .date-pill-remove { cursor: pointer; background: rgba(0,0,0,0.2); border-radius: 50%; width: 18px; height: 18px; display: flex; justify-content: center; align-items: center; line-height: 1; transition: background 0.2s; }
+    .date-pill-remove:hover { background: rgba(0,0,0,0.5); }
+
     .item-card { border: 1px solid var(--border); border-radius: var(--card-border-radius); padding: var(--card-padding); margin: 0 20px var(--item-margin); background: var(--card-bg); }
     .item-card.disabled { opacity: 0.4; }
     
@@ -171,15 +176,17 @@
   <div class="daily-summary" id="dailyTotalDisplay">當日總收入：$0</div>
 
   <div class="section-title">新增 / 編輯紀錄</div>
+  
   <div class="form-group">
-    <label>日期 (可新增多天同時記錄)</label>
-    <div id="dateInputsContainer" style="display:flex; flex-direction:column; gap:8px;">
-      <div class="date-input-row" style="display:flex; gap:8px; align-items:center;">
-        <input type="date" class="multi-date-input" id="inputDate">
-        <button type="button" onclick="addDateInput()" class="btn-add-date" style="padding: 6px 12px; background:var(--primary); border:none; border-radius:4px; color:white; cursor:pointer; font-weight:bold;">+</button>
-      </div>
-    </div>
+    <label style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span>選取的日期 (可點擊月曆新增)</span>
+      <label id="multiSelectLabel" style="color:var(--primary); display:flex; align-items:center; gap:4px; font-weight:bold; cursor:pointer; font-size:13px; margin:0;">
+        <input type="checkbox" id="multiSelectToggle" style="width:auto; margin:0; padding:0;" onchange="toggleMultiSelect()"> 啟用多天同時記錄
+      </label>
+    </label>
+    <div id="selectedDatesDisplay" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
   </div>
+
   <div class="form-group">
     <label>單號 (選填)</label>
     <input type="text" id="inputOrderNo" placeholder="請輸入接案單號">
@@ -248,7 +255,7 @@
         <div style="flex:1;"><label>金額</label><input type="number" id="valCustom" value="0"></div>
       </div>
       <div>
-        <label>薪資來源</label>
+        <label>薪存來源</label>
         <select id="sourceCustom">
           <option value="company">公司</option>
           <option value="private">私下</option>
@@ -296,6 +303,7 @@
   let records = [];
   let currentDate = new Date();
   let selectedDateString = formatDate(currentDate);
+  let formDates = [selectedDateString]; // 存放表單準備寫入的所有日期
   let editingId = null;
   let editingOriginalYearMonth = null; 
   let isCalendarCollapsed = false;
@@ -304,8 +312,6 @@
   const RATE_PRIVATE = 1500;
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('inputDate').value = selectedDateString;
-
     const timeSelect = document.getElementById('inputTime');
     for (let h = 9; h <= 22; h++) {
       ['00', '30'].forEach(m => {
@@ -316,21 +322,9 @@
     }
 
     initSettings();
+    renderFormDates(); // 繪製預設日期標籤
     fetchDataFromSheet();
   });
-
-  // ========== 日期多選 UI 輔助 ==========
-  function addDateInput() {
-    const container = document.getElementById('dateInputsContainer');
-    const div = document.createElement('div');
-    div.className = 'date-input-row';
-    div.style = "display:flex; gap:8px; align-items:center;";
-    div.innerHTML = `
-      <input type="date" class="multi-date-input">
-      <button type="button" onclick="this.parentElement.remove()" style="padding: 6px 12px; background:var(--danger); border:none; border-radius:4px; color:white; cursor:pointer; font-weight:bold;">-</button>
-    `;
-    container.appendChild(div);
-  }
 
   // ========== 月曆收合功能 ==========
   function toggleCalendar() {
@@ -365,8 +359,8 @@
     document.getElementById('baseFontSizeDisplay').innerText = size + 'px';
     localStorage.setItem('baseFontSize', size);
   }
-  // ==============================
 
+  // ========== 畫面與邏輯輔助 ==========
   function getYearMonthFromDate(dateStr) {
     if (!dateStr) return null;
     const parts = String(dateStr).split('-');
@@ -391,6 +385,51 @@
     return `${y}-${m}-${d}`;
   }
 
+  // 渲染表單上的日期標籤 (Pills)
+  function renderFormDates() {
+    const container = document.getElementById('selectedDatesDisplay');
+    container.innerHTML = '';
+    formDates.forEach(d => {
+      // 只要超過 1 天且不是在編輯模式，就允許刪除特定日期
+      const canRemove = (formDates.length > 1 && !editingId);
+      container.innerHTML += `
+        <div class="date-pill">
+          ${d}
+          ${canRemove ? `<div class="date-pill-remove" onclick="removeFormDate('${d}', event)">×</div>` : ''}
+        </div>
+      `;
+    });
+  }
+
+  // 從多選清單中移除特定日期
+  function removeFormDate(d, e) {
+    e.stopPropagation();
+    formDates = formDates.filter(date => date !== d);
+    if (formDates.length === 0) {
+      formDates = [selectedDateString];
+      document.getElementById('multiSelectToggle').checked = false;
+    } else {
+      selectedDateString = formDates[formDates.length - 1]; 
+    }
+    renderCalendar();
+    renderFormDates();
+    updateDailyView();
+  }
+
+  // 切換「啟用多天同時記錄」開關
+  function toggleMultiSelect() {
+    if (!document.getElementById('multiSelectToggle').checked) {
+      // 如果關閉多選，保留最後一次點擊的日期即可
+      if (formDates.length > 1) {
+        formDates = [formDates[formDates.length - 1]];
+        selectedDateString = formDates[0];
+      }
+    }
+    renderCalendar();
+    renderFormDates();
+  }
+
+  // ========== 主資料抓取與渲染 ==========
   async function fetchDataFromSheet() {
     document.getElementById('loadingOverlay').style.display = 'flex';
     const year = currentDate.getFullYear();
@@ -411,6 +450,120 @@
     }
   }
 
+  // 點擊月曆格子時的行為判斷
+  function selectDate(dateStr) {
+    const isMultiMode = document.getElementById('multiSelectToggle').checked;
+
+    if (isMultiMode && !editingId) {
+      // 多選模式：若已存在則移除（前提是大於1天），若不存在則加入
+      if (formDates.includes(dateStr)) {
+        if (formDates.length > 1) {
+          formDates = formDates.filter(d => d !== dateStr);
+          selectedDateString = formDates[formDates.length - 1]; // 下方清單切換到最後一個選取的日子
+        }
+      } else {
+        formDates.push(dateStr);
+        formDates.sort(); // 保持日期排序
+        selectedDateString = dateStr;
+      }
+    } else {
+      // 單選模式或編輯模式：直接覆蓋
+      formDates = [dateStr];
+      selectedDateString = dateStr;
+    }
+
+    renderCalendar();
+    renderFormDates();
+    updateDailyView();
+  }
+
+  function renderCalendar() {
+    const currentYear = currentDate.getFullYear();
+    const currentMonthIndex = currentDate.getMonth(); 
+    const displayMonth = currentMonthIndex + 1; 
+
+    document.getElementById('monthYearDisplay').innerText = `${currentYear}年 ${displayMonth}月`;
+
+    const firstDay = new Date(currentYear, currentMonthIndex, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
+    const calendarDays = document.getElementById('calendarDays');
+    calendarDays.innerHTML = '';
+
+    let currentMonthTotal = 0;
+
+    for (let i = 0; i < firstDay; i++) {
+      calendarDays.innerHTML += `<div class="day-cell empty"></div>`;
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${currentYear}-${String(displayMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dailyRecords = records.filter(r => r.date === dateStr);
+      const dailyIncome = dailyRecords.reduce((sum, r) => sum + (Number(r.totalIncome) || 0), 0);
+      currentMonthTotal += dailyIncome;
+
+      let hasEng = false;
+      let hasMos = false;
+      let hasClean = false;
+
+      dailyRecords.forEach(r => {
+        if (r.acQty > 0 || r.wmQty > 0 || r.customName) hasEng = true;
+        if (r.mos > 0) hasMos = true;
+        if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) hasClean = true;
+      });
+
+      let dotsHtml = '<div class="dots-wrapper">';
+      if (hasEng) dotsHtml += '<div class="status-dot dot-eng"></div>';
+      if (hasMos) dotsHtml += '<div class="status-dot dot-mos"></div>';
+      if (hasClean) dotsHtml += '<div class="status-dot dot-clean"></div>';
+      dotsHtml += '</div>';
+
+      // 只要日期包含在 formDates 陣列中，格子就會亮起
+      const isActive = formDates.includes(dateStr) ? 'active' : '';
+      const incomeHtml = dailyIncome > 0 ? `<div class="day-income">$${dailyIncome}</div>` : '';
+
+      calendarDays.innerHTML += `
+        <div class="day-cell ${isActive}" onclick="selectDate('${dateStr}')">
+          <div class="day-date">${day}</div>
+          ${dotsHtml}
+          ${incomeHtml}
+        </div>
+      `;
+    }
+
+    document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
+  }
+
+  function updateDailyView() {
+    document.getElementById('selectedDateTitle').innerText = `紀錄清單 (${selectedDateString})`;
+    const listContainer = document.getElementById('dailyRecords');
+    const dailyRecords = records.filter(r => r.date === selectedDateString);
+
+    listContainer.innerHTML = '';
+    let dailyTotal = 0;
+
+    if (dailyRecords.length === 0) {
+      listContainer.innerHTML = '<p style="text-align:center; color:#666;">當日尚無紀錄</p>';
+    } else {
+      dailyRecords.forEach(r => {
+        dailyTotal += Number(r.totalIncome) || 0;
+        listContainer.innerHTML += `
+          <div class="record-item">
+            <div class="record-actions">
+              <button class="btn-action btn-edit" onclick="editRecord('${String(r.id)}')">編輯</button>
+              <button class="btn-action btn-delete" onclick="deleteRecord('${String(r.id)}')">刪除</button>
+            </div>
+            <p class="record-title">${r.itemString}</p>
+            <p>單號：${r.orderNo || '無'}</p>
+            <p>總計：$${r.totalIncome} (工程:$${(Number(r.companyIncome) || 0) + (Number(r.privateIncome) || 0)}, 摩斯:$${Number(r.mos) || 0}, 打掃:$${Number(r.cleaning) || 0})</p>
+          </div>
+        `;
+      });
+    }
+
+    document.getElementById('dailyTotalDisplay').innerText = `當日總收入：$${dailyTotal}`;
+  }
+
+  // ========== 編輯與重設功能 ==========
   function editRecord(id) {
     const r = records.find(x => String(x.id) === String(id));
     if (!r) return;
@@ -418,17 +571,21 @@
     editingId = String(r.id);
     editingOriginalYearMonth = r.originalYearMonth || getYearMonthFromDate(r.date);
 
-    resetForm(); 
+    resetForm(false); 
     
-    const btnAddDate = document.querySelector('.btn-add-date');
-    if (btnAddDate) btnAddDate.style.display = 'none'; 
-    
+    // 進入編輯模式時，強制關閉並隱藏多選按鈕
+    document.getElementById('multiSelectToggle').checked = false;
+    document.getElementById('multiSelectLabel').style.display = 'none';
+    formDates = [r.date];
+    selectedDateString = r.date;
+    renderFormDates();
+    renderCalendar();
+
     document.getElementById('btnSubmit').scrollIntoView({ behavior: 'smooth', block: 'end' });
     document.getElementById('btnSubmit').innerText = "更新紀錄並計算";
     document.getElementById('btnSubmit').style.background = "#3498DB";
     document.getElementById('btnCancel').style.display = "block";
 
-    document.getElementById('inputDate').value = r.date || '';
     document.getElementById('inputOrderNo').value = r.orderNo || '';
     document.getElementById('inputTime').value = r.time || '';
     document.getElementById('inputLocation').value = r.location || '';
@@ -440,23 +597,24 @@
     if (r.cleaning > 0 || String(r.itemString || '').includes('打掃')) { document.getElementById('checkCleaning').checked = true; toggleItem('Cleaning'); document.getElementById('valCleaning').value = r.cleaning || 0; }
   }
 
-  function resetForm() {
+  function resetForm(fullReset = true) {
     editingId = null;
     editingOriginalYearMonth = null;
-
-    const container = document.getElementById('dateInputsContainer');
-    container.innerHTML = `
-      <div class="date-input-row" style="display:flex; gap:8px; align-items:center;">
-        <input type="date" class="multi-date-input" id="inputDate">
-        <button type="button" onclick="addDateInput()" class="btn-add-date" style="padding: 6px 12px; background:var(--primary); border:none; border-radius:4px; color:white; cursor:pointer; font-weight:bold;">+</button>
-      </div>
-    `;
 
     document.getElementById('btnSubmit').innerText = "儲存紀錄並計算";
     document.getElementById('btnSubmit').style.background = "var(--primary)";
     document.getElementById('btnCancel').style.display = "none";
 
-    document.getElementById('inputDate').value = selectedDateString;
+    // 恢復顯示多選開關，並確保取消勾選
+    document.getElementById('multiSelectLabel').style.display = 'flex';
+    document.getElementById('multiSelectToggle').checked = false;
+    
+    if (fullReset) {
+      formDates = [selectedDateString];
+      renderFormDates();
+      renderCalendar();
+    }
+
     document.getElementById('inputOrderNo').value = '';
     document.getElementById('inputTime').value = '';
     document.getElementById('inputLocation').value = '';
@@ -477,11 +635,9 @@
     document.getElementById('sourceCustom').value = 'company';
   }
 
+  // ========== 儲存與刪除 ==========
   async function saveRecord() {
-    const dateInputs = document.querySelectorAll('.multi-date-input');
-    const dates = Array.from(dateInputs).map(inp => inp.value).filter(v => v);
-
-    if (dates.length === 0) { alert("請填寫至少一個日期"); return; }
+    if (formDates.length === 0) { alert("請點擊月曆選取至少一個日期"); return; }
     const orderNo = document.getElementById('inputOrderNo').value.trim();
     const time = document.getElementById('inputTime').value;
     const location = document.getElementById('inputLocation').value.trim();
@@ -503,6 +659,7 @@
 
     const recordsToSave = [];
     const isEdit = !!editingId;
+    const dates = [...formDates]; // 複製當前選取的日期陣列
 
     for (let i = 0; i < dates.length; i++) {
       const date = dates[i];
@@ -543,7 +700,7 @@
       }
 
       if (hasCleaning) {
-        // ★ 月薪制防呆：如果你輸入了金額（例如 14500）並批次新增多天，系統只會在「第一筆」存入金額，其餘記 0
+        // ★ 月薪制防呆：若多天選取，只在「第一筆」紀錄打掃金額
         cleaningIncome = (i === 0) ? (parseInt(document.getElementById('valCleaning').value, 10) || 0) : 0;
         let cleanTime = time ? time : "10:00"; 
         itemStringParts.push(`${cleanTime} 打掃`);
@@ -594,11 +751,11 @@
       }
     }
 
-    resetForm();
-
+    // 存檔後重設為單日
     selectedDateString = dates[0];
-    const inputDateObj = new Date(dates[0]);
+    resetForm(true); 
 
+    const inputDateObj = new Date(dates[0]);
     if (
       inputDateObj.getMonth() !== currentDate.getMonth() ||
       inputDateObj.getFullYear() !== currentDate.getFullYear() ||
@@ -622,102 +779,7 @@
     records = records.filter(r => String(r.id) !== String(id));
     renderCalendar();
     updateDailyView();
-    resetForm();
-  }
-
-  function renderCalendar() {
-    const currentYear = currentDate.getFullYear();
-    const currentMonthIndex = currentDate.getMonth(); 
-    const displayMonth = currentMonthIndex + 1; 
-
-    document.getElementById('monthYearDisplay').innerText = `${currentYear}年 ${displayMonth}月`;
-
-    const firstDay = new Date(currentYear, currentMonthIndex, 1).getDay();
-    const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
-    const calendarDays = document.getElementById('calendarDays');
-    calendarDays.innerHTML = '';
-
-    let currentMonthTotal = 0;
-
-    for (let i = 0; i < firstDay; i++) {
-      calendarDays.innerHTML += `<div class="day-cell empty"></div>`;
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${currentYear}-${String(displayMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const dailyRecords = records.filter(r => r.date === dateStr);
-      const dailyIncome = dailyRecords.reduce((sum, r) => sum + (Number(r.totalIncome) || 0), 0);
-      currentMonthTotal += dailyIncome;
-
-      let hasEng = false;
-      let hasMos = false;
-      let hasClean = false;
-
-      dailyRecords.forEach(r => {
-        if (r.acQty > 0 || r.wmQty > 0 || r.customName) hasEng = true;
-        if (r.mos > 0) hasMos = true;
-        if (r.cleaning > 0 || String(r.itemString || '').indexOf("打掃") !== -1) {
-          hasClean = true;
-        }
-      });
-
-      let dotsHtml = '<div class="dots-wrapper">';
-      if (hasEng) dotsHtml += '<div class="status-dot dot-eng"></div>';
-      if (hasMos) dotsHtml += '<div class="status-dot dot-mos"></div>';
-      if (hasClean) dotsHtml += '<div class="status-dot dot-clean"></div>';
-      dotsHtml += '</div>';
-
-      const isActive = dateStr === selectedDateString ? 'active' : '';
-      const incomeHtml = dailyIncome > 0 ? `<div class="day-income">$${dailyIncome}</div>` : '';
-
-      calendarDays.innerHTML += `
-        <div class="day-cell ${isActive}" onclick="selectDate('${dateStr}')">
-          <div class="day-date">${day}</div>
-          ${dotsHtml}
-          ${incomeHtml}
-        </div>
-      `;
-    }
-
-    // ★ 移除背後自作聰明加回去的邏輯，直接顯示陣列真正的總額
-    document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
-  }
-
-  function selectDate(dateStr) {
-    selectedDateString = dateStr;
-    document.getElementById('inputDate').value = dateStr;
-    renderCalendar();
-    updateDailyView();
-  }
-
-  function updateDailyView() {
-    document.getElementById('selectedDateTitle').innerText = `紀錄清單 (${selectedDateString})`;
-    const listContainer = document.getElementById('dailyRecords');
-    const dailyRecords = records.filter(r => r.date === selectedDateString);
-
-    listContainer.innerHTML = '';
-    let dailyTotal = 0;
-
-    if (dailyRecords.length === 0) {
-      listContainer.innerHTML = '<p style="text-align:center; color:#666;">當日尚無紀錄</p>';
-    } else {
-      dailyRecords.forEach(r => {
-        dailyTotal += Number(r.totalIncome) || 0;
-        listContainer.innerHTML += `
-          <div class="record-item">
-            <div class="record-actions">
-              <button class="btn-action btn-edit" onclick="editRecord('${String(r.id)}')">編輯</button>
-              <button class="btn-action btn-delete" onclick="deleteRecord('${String(r.id)}')">刪除</button>
-            </div>
-            <p class="record-title">${r.itemString}</p>
-            <p>單號：${r.orderNo || '無'}</p>
-            <p>總計：$${r.totalIncome} (工程:$${(Number(r.companyIncome) || 0) + (Number(r.privateIncome) || 0)}, 摩斯:$${Number(r.mos) || 0}, 打掃:$${Number(r.cleaning) || 0})</p>
-          </div>
-        `;
-      });
-    }
-
-    document.getElementById('dailyTotalDisplay').innerText = `當日總收入：$${dailyTotal}`;
+    resetForm(true);
   }
 
   document.getElementById('prevMonth').addEventListener('click', async () => {
