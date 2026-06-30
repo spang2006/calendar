@@ -430,24 +430,114 @@
     renderFormDates();
   }
 
-  // ========== 主資料抓取與渲染 ==========
+  // ========== 主資料抓取與渲染（本機快取 + 背景更新）==========
+  // 快取策略：
+  // 1. 先從 localStorage 讀出該月舊資料，立刻渲染畫面（幾乎 0 秒，不卡 loading）。
+  // 2. 同時在背景向伺服器要最新資料，回來後若有變化才悄悄刷新並更新快取。
+  // 3. 完全沒有快取時（第一次看某月），才顯示全屏 loading 等待。
+  // 前端排序：先日期、同日內按時間從早到晚（與後端一致）
+  function recordTimeMinutes(r) {
+    let t = String((r && r.time) || '').trim();
+    let m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) {
+      const item = String((r && r.itemString) || '');
+      m = item.match(/(\d{1,2}):(\d{2})/);
+    }
+    if (m) {
+      const h = Number(m[1]), min = Number(m[2]);
+      if (!isNaN(h) && !isNaN(min)) return h * 60 + min;
+    }
+    return 24 * 60 + 1; // 沒時間排當天最後
+  }
+
+  function sortRecords() {
+    records.sort((a, b) => {
+      if (a.date < b.date) return -1;
+      if (a.date > b.date) return 1;
+      return recordTimeMinutes(a) - recordTimeMinutes(b);
+    });
+  }
+
+  // 任何本地變動後呼叫：重新排序、重繪、並把目前顯示月份寫回本機快取
+  function applyLocalChange() {
+    sortRecords();
+    renderCalendar();
+    updateDailyView();
+    const y = currentDate.getFullYear();
+    const mo = currentDate.getMonth() + 1;
+    saveLocalRecords(y, mo, records);
+  }
+
+  function getCacheKeyLocal(year, month) {
+    return `records_cache_${year}_${month}`;
+  }
+
+  function loadLocalRecords(year, month) {
+    try {
+      const raw = localStorage.getItem(getCacheKeyLocal(year, month));
+      if (!raw) return null;
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveLocalRecords(year, month, data) {
+    try {
+      localStorage.setItem(getCacheKeyLocal(year, month), JSON.stringify(data));
+    } catch (e) {
+      // 容量滿或隱私模式：忽略，不影響功能
+    }
+  }
+
   async function fetchDataFromSheet() {
-    document.getElementById('loadingOverlay').style.display = 'flex';
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
 
+    // 步驟一：先用本機快取即時顯示
+    const cached = loadLocalRecords(year, month);
+    const hasCache = cached !== null;
+    if (hasCache) {
+      records = cached;
+      renderCalendar();
+      updateDailyView();
+      // 有快取：不擋畫面，背景靜默更新
+      document.getElementById('loadingOverlay').style.display = 'none';
+    } else {
+      // 沒快取：第一次看這個月，顯示 loading
+      document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    // 步驟二：背景向伺服器要最新資料
     try {
       const res = await fetch(`${GAS_URL}?year=${year}&month=${month}`);
       const data = await res.json();
-      records = Array.isArray(data) ? data : [];
+      const fresh = Array.isArray(data) ? data : [];
+
+      // 只有當伺服器資料與目前顯示不同時才重繪，避免無謂閃動
+      const changed = JSON.stringify(fresh) !== JSON.stringify(records);
+      records = fresh;
+      saveLocalRecords(year, month, fresh);
+
+      // 確認使用者還停留在同一個月才重繪（避免背景回來時已切月）
+      if (currentDate.getFullYear() === year && (currentDate.getMonth() + 1) === month) {
+        if (changed || !hasCache) {
+          renderCalendar();
+          updateDailyView();
+        }
+      }
     } catch (err) {
       console.error("同步失敗", err);
-      alert("無法讀取伺服器資料，請確認連線狀態。");
-      records = [];
+      // 有快取時連線失敗：靜默沿用快取，不打擾使用者
+      if (!hasCache) {
+        alert("無法讀取伺服器資料，請確認連線狀態。");
+        records = [];
+        renderCalendar();
+        updateDailyView();
+      }
     } finally {
       document.getElementById('loadingOverlay').style.display = 'none';
-      renderCalendar();
-      updateDailyView();
     }
   }
 
@@ -777,8 +867,7 @@
       currentDate = inputDateObj;
       await fetchDataFromSheet();
     } else {
-      renderCalendar();
-      updateDailyView();
+      applyLocalChange();
     }
   }
 
@@ -790,8 +879,7 @@
     if (!ok) return;
 
     records = records.filter(r => String(r.id) !== String(id));
-    renderCalendar();
-    updateDailyView();
+    applyLocalChange();
     resetForm(true);
   }
 
