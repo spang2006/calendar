@@ -835,39 +835,95 @@
       });
     }
 
+    // ===== 樂觀更新（Optimistic Update）=====
+    // 不再等伺服器回應才更新畫面。按下儲存的瞬間就：
+    //   1. 立刻把資料寫進記憶體 + 本機快取 + 重繪（使用者 0 秒看到結果）
+    //   2. 重設表單，可馬上記下一筆
+    //   3. 背景把資料送往伺服器，不擋畫面
+    //   4. 送出失敗才跳提示，並把該筆標記為「未同步」
+
+    // 先在記憶體即時套用
     if (isEdit) {
-      const ok = await syncToSheet('edit', recordsToSave[0]);
-      if (!ok) return;
       const idx = records.findIndex(r => String(r.id) === String(editingId));
-      if (idx !== -1) records[idx] = { ...recordsToSave[0], originalYearMonth: getYearMonthFromDate(recordsToSave[0].date) };
-    } else {
-      if (recordsToSave.length === 1) {
-        const ok = await syncToSheet('add', recordsToSave[0]);
-        if (!ok) return;
-        records.push({ ...recordsToSave[0], originalYearMonth: getYearMonthFromDate(recordsToSave[0].date) });
+      if (idx !== -1) {
+        records[idx] = { ...recordsToSave[0], originalYearMonth: getYearMonthFromDate(recordsToSave[0].date), _pending: true };
       } else {
-        const ok = await syncToSheet('batchAdd', null, recordsToSave);
-        if (!ok) return;
-        recordsToSave.forEach(r => {
-          records.push({ ...r, originalYearMonth: getYearMonthFromDate(r.date) });
-        });
+        records.push({ ...recordsToSave[0], originalYearMonth: getYearMonthFromDate(recordsToSave[0].date), _pending: true });
       }
+    } else {
+      recordsToSave.forEach(r => {
+        records.push({ ...r, originalYearMonth: getYearMonthFromDate(r.date), _pending: true });
+      });
     }
 
-    // 存檔後重設為單日
+    // 記下這次操作所需的資訊，供背景送出與切月判斷使用
+    const op = {
+      isEdit,
+      recordsToSave,
+      editingOriginalYearMonth,
+      targetDate: dates[0]
+    };
+
+    // 立即重設表單與畫面（使用者可馬上輸入下一筆）
     selectedDateString = dates[0];
-    resetForm(true); 
+    resetForm(true);
 
     const inputDateObj = new Date(dates[0]);
-    if (
+    const needSwitchMonth = (
       inputDateObj.getMonth() !== currentDate.getMonth() ||
       inputDateObj.getFullYear() !== currentDate.getFullYear() ||
-      (isEdit && editingOriginalYearMonth && editingOriginalYearMonth !== getYearMonthFromDate(dates[0]))
-    ) {
+      (isEdit && op.editingOriginalYearMonth && op.editingOriginalYearMonth !== getYearMonthFromDate(dates[0]))
+    );
+
+    if (needSwitchMonth) {
+      // 跨月：先切到目標月並用本機快取即時顯示（fetchDataFromSheet 會背景補抓）
       currentDate = inputDateObj;
-      await fetchDataFromSheet();
+    }
+    applyLocalChange();
+
+    // 背景送往伺服器，不 await、不擋畫面
+    syncInBackground(op);
+  }
+
+  // 背景同步：把樂觀更新的資料實際送往伺服器，失敗才提示
+  async function syncInBackground(op) {
+    let ok = false;
+    try {
+      if (op.isEdit) {
+        ok = await syncToSheet('edit', op.recordsToSave[0]);
+      } else if (op.recordsToSave.length === 1) {
+        ok = await syncToSheet('add', op.recordsToSave[0]);
+      } else {
+        ok = await syncToSheet('batchAdd', null, op.recordsToSave);
+      }
+    } catch (e) {
+      ok = false;
+    }
+
+    const ids = op.recordsToSave.map(r => String(r.id));
+
+    if (ok) {
+      // 成功：清掉 _pending 標記並更新快取
+      records.forEach(r => { if (ids.includes(String(r.id))) delete r._pending; });
+      const y = currentDate.getFullYear();
+      const mo = currentDate.getMonth() + 1;
+      saveLocalRecords(y, mo, records);
+      // 不重繪也可以（標記是隱形的）；若你想讓「未同步」有視覺差異，可改為 renderCalendar()
     } else {
-      applyLocalChange();
+      // 失敗：把樂觀加入的資料回滾，提示使用者重試
+      if (op.isEdit) {
+        // 編輯失敗：保留資料但標記未同步，避免使用者輸入消失
+        alert('這筆編輯沒有成功上傳到伺服器，請稍後重新編輯一次。');
+      } else {
+        // 新增失敗：移除剛剛樂觀加入的資料，避免顯示一筆其實沒存上的紀錄
+        records = records.filter(r => !ids.includes(String(r.id)));
+        const y = currentDate.getFullYear();
+        const mo = currentDate.getMonth() + 1;
+        saveLocalRecords(y, mo, records);
+        renderCalendar();
+        updateDailyView();
+        alert('這筆紀錄沒有成功上傳到伺服器，請確認連線後重新輸入。');
+      }
     }
   }
 
@@ -875,12 +931,19 @@
     const recordToDelete = records.find(r => String(r.id) === String(id));
     if (!recordToDelete) return;
 
-    const ok = await syncToSheet('delete', recordToDelete);
-    if (!ok) return;
-
+    // 樂觀更新：立即從畫面移除
+    const backup = { ...recordToDelete };
     records = records.filter(r => String(r.id) !== String(id));
     applyLocalChange();
     resetForm(true);
+
+    // 背景送出刪除，失敗才把資料還原
+    const ok = await syncToSheet('delete', recordToDelete);
+    if (!ok) {
+      records.push(backup);
+      applyLocalChange();
+      alert('刪除沒有成功上傳到伺服器，已還原這筆紀錄，請稍後重試。');
+    }
   }
 
   document.getElementById('prevMonth').addEventListener('click', async () => {
@@ -894,9 +957,9 @@
   });
 
   async function syncToSheet(action, record, batchRecords = null) {
+    // 純粹負責送出，不控制畫面 loading、不自行 alert。
+    // 成敗由呼叫端（樂觀更新流程）決定如何處理。
     try {
-      document.getElementById('loadingOverlay').style.display = 'flex';
-
       const payload = { action };
       if (action === 'batchAdd') {
         payload.records = batchRecords;
@@ -919,20 +982,13 @@
       try {
         data = JSON.parse(text);
       } catch (e) {
-        throw new Error('伺服器回傳格式錯誤');
+        return false;
       }
 
-      if (data.status !== 'success') {
-        throw new Error(data.message || '寫入失敗');
-      }
-
-      return true;
+      return data.status === 'success';
     } catch (err) {
       console.error('寫入失敗:', err);
-      alert(`同步失敗：${err.message}`);
       return false;
-    } finally {
-      document.getElementById('loadingOverlay').style.display = 'none';
     }
   }
 </script>
