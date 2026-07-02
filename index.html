@@ -671,14 +671,6 @@
     const r = records.find(x => String(x.id) === String(id));
     if (!r) return;
 
-    // ★修正：若這筆是剛新增、背景尚未同步成功（_pending）的紀錄，
-    //   伺服器試算表還沒有對應列，此時送 edit 會在後端找不到列而被誤判為新增，
-    //   造成重複資料。先擋下並提示使用者稍候。
-    if (r._pending) {
-      alert('這筆紀錄還在上傳伺服器，請稍候幾秒後再編輯。');
-      return;
-    }
-
     editingId = String(r.id);
     // originalYearMonth 一律以「紀錄實際日期」推算，避免沿用可能過期的舊值
     editingOriginalYearMonth = getYearMonthFromDate(r.date);
@@ -710,8 +702,14 @@
   }
 
   function resetForm(fullReset = true) {
-    editingId = null;
-    editingOriginalYearMonth = null;
+    // ★關鍵修正：只有「完整重設」(如取消編輯、儲存完成)才清掉編輯狀態。
+    //   editRecord 內部會呼叫 resetForm(false) 來清空表單欄位，
+    //   若在此無條件清掉 editingId，會導致編輯完按儲存時被誤判為新增，
+    //   進而產生一筆重複資料（舊資料未被覆寫）。
+    if (fullReset) {
+      editingId = null;
+      editingOriginalYearMonth = null;
+    }
 
     document.getElementById('btnSubmit').innerText = "儲存紀錄並計算";
     document.getElementById('btnSubmit').style.background = "var(--primary)";
