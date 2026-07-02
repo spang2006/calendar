@@ -671,8 +671,17 @@
     const r = records.find(x => String(x.id) === String(id));
     if (!r) return;
 
+    // ★修正：若這筆是剛新增、背景尚未同步成功（_pending）的紀錄，
+    //   伺服器試算表還沒有對應列，此時送 edit 會在後端找不到列而被誤判為新增，
+    //   造成重複資料。先擋下並提示使用者稍候。
+    if (r._pending) {
+      alert('這筆紀錄還在上傳伺服器，請稍候幾秒後再編輯。');
+      return;
+    }
+
     editingId = String(r.id);
-    editingOriginalYearMonth = r.originalYearMonth || getYearMonthFromDate(r.date);
+    // originalYearMonth 一律以「紀錄實際日期」推算，避免沿用可能過期的舊值
+    editingOriginalYearMonth = getYearMonthFromDate(r.date);
 
     resetForm(false); 
     
