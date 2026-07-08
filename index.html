@@ -59,6 +59,7 @@
 
     .section-title { font-size: calc(var(--base-font-size) + 1px); font-weight: bold; margin: 20px 20px 10px; border-left: 3px solid var(--primary); padding-left: 8px; color: var(--text); }
     .monthly-total { background: #1a1a1a; color: var(--primary); padding: 12px 20px; font-size: calc(var(--base-font-size) + 1px); font-weight: bold; text-align: center; border-bottom: 1px solid var(--border); }
+    .monthly-breakdown { margin-top: 3px; font-size: calc(var(--base-font-size) - 3px); font-weight: normal; color: #888; letter-spacing: 0.3px; }
 
     .form-group { padding: 8px 20px; }
     .form-group label { display: block; margin-bottom: 5px; font-size: calc(var(--base-font-size) - 1px); color: #aaa; }
@@ -583,6 +584,8 @@
 
     let currentMonthTotal = 0;
     let hasCleaningThisMonth = false; // 用來追蹤當月是否包含任何打掃行程
+    // 分類累加：用於下方明細顯示
+    let sumCompany = 0, sumPrivate = 0, sumMos = 0, sumCleaning = 0;
 
     for (let i = 0; i < firstDay; i++) {
       calendarDays.innerHTML += `<div class="day-cell empty"></div>`;
@@ -593,6 +596,13 @@
       const dailyRecords = records.filter(r => r.date === dateStr);
       const dailyIncome = dailyRecords.reduce((sum, r) => sum + (Number(r.totalIncome) || 0), 0);
       currentMonthTotal += dailyIncome;
+
+      dailyRecords.forEach(r => {
+        sumCompany  += Number(r.companyIncome) || 0;
+        sumPrivate  += Number(r.privateIncome) || 0;
+        sumMos      += Number(r.mos) || 0;
+        sumCleaning += Number(r.cleaning) || 0;
+      });
 
       let hasEng = false;
       let hasMos = false;
@@ -631,9 +641,21 @@
       const isAfterJuly = (currentYear > 2026) || (currentYear === 2026 && displayMonth >= 7);
       const cleaningMonthlySalary = isAfterJuly ? 14500 : 7500;
       currentMonthTotal += cleaningMonthlySalary;
+      sumCleaning += cleaningMonthlySalary; // 打掃月薪併入打掃分類明細
     }
 
-    document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
+    // 產生分類明細（只顯示有金額的類別）
+    const breakdownParts = [];
+    if (sumCompany  > 0) breakdownParts.push(`公司 $${sumCompany}`);
+    if (sumPrivate  > 0) breakdownParts.push(`私下 $${sumPrivate}`);
+    if (sumMos      > 0) breakdownParts.push(`摩斯 $${sumMos}`);
+    if (sumCleaning > 0) breakdownParts.push(`打掃 $${sumCleaning}`);
+    const breakdownHtml = breakdownParts.length
+      ? `<div class="monthly-breakdown">${breakdownParts.join('｜')}</div>`
+      : '';
+
+    document.getElementById('monthlyTotalDisplay').innerHTML =
+      `本月累計總收入：$${currentMonthTotal}${breakdownHtml}`;
   }
 
   function updateDailyView() {
