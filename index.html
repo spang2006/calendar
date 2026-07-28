@@ -59,7 +59,6 @@
 
     .section-title { font-size: calc(var(--base-font-size) + 1px); font-weight: bold; margin: 20px 20px 10px; border-left: 3px solid var(--primary); padding-left: 8px; color: var(--text); }
     .monthly-total { background: #1a1a1a; color: var(--primary); padding: 12px 20px; font-size: calc(var(--base-font-size) + 1px); font-weight: bold; text-align: center; border-bottom: 1px solid var(--border); }
-    .monthly-breakdown { margin-top: 3px; font-size: calc(var(--base-font-size) - 3px); font-weight: normal; color: #888; letter-spacing: 0.3px; }
 
     .form-group { padding: 8px 20px; }
     .form-group label { display: block; margin-bottom: 5px; font-size: calc(var(--base-font-size) - 1px); color: #aaa; }
@@ -584,8 +583,6 @@
 
     let currentMonthTotal = 0;
     let hasCleaningThisMonth = false; // 用來追蹤當月是否包含任何打掃行程
-    // 分類累加：用於下方明細顯示
-    let sumCompany = 0, sumPrivate = 0, sumMos = 0, sumCleaning = 0;
 
     for (let i = 0; i < firstDay; i++) {
       calendarDays.innerHTML += `<div class="day-cell empty"></div>`;
@@ -596,13 +593,6 @@
       const dailyRecords = records.filter(r => r.date === dateStr);
       const dailyIncome = dailyRecords.reduce((sum, r) => sum + (Number(r.totalIncome) || 0), 0);
       currentMonthTotal += dailyIncome;
-
-      dailyRecords.forEach(r => {
-        sumCompany  += Number(r.companyIncome) || 0;
-        sumPrivate  += Number(r.privateIncome) || 0;
-        sumMos      += Number(r.mos) || 0;
-        sumCleaning += Number(r.cleaning) || 0;
-      });
 
       let hasEng = false;
       let hasMos = false;
@@ -641,21 +631,9 @@
       const isAfterJuly = (currentYear > 2026) || (currentYear === 2026 && displayMonth >= 7);
       const cleaningMonthlySalary = isAfterJuly ? 14500 : 7500;
       currentMonthTotal += cleaningMonthlySalary;
-      sumCleaning += cleaningMonthlySalary; // 打掃月薪併入打掃分類明細
     }
 
-    // 產生分類明細（只顯示有金額的類別）
-    const breakdownParts = [];
-    if (sumCompany  > 0) breakdownParts.push(`公司 $${sumCompany}`);
-    if (sumPrivate  > 0) breakdownParts.push(`私下 $${sumPrivate}`);
-    if (sumMos      > 0) breakdownParts.push(`摩斯 $${sumMos}`);
-    if (sumCleaning > 0) breakdownParts.push(`打掃 $${sumCleaning}`);
-    const breakdownHtml = breakdownParts.length
-      ? `<div class="monthly-breakdown">${breakdownParts.join('｜')}</div>`
-      : '';
-
-    document.getElementById('monthlyTotalDisplay').innerHTML =
-      `本月累計總收入：$${currentMonthTotal}${breakdownHtml}`;
+    document.getElementById('monthlyTotalDisplay').innerText = `本月累計總收入：$${currentMonthTotal}`;
   }
 
   function updateDailyView() {
@@ -914,6 +892,42 @@
     syncInBackground(op);
   }
 
+  // 向伺服器查詢指定年月的紀錄，回傳 records 陣列（失敗回傳 null）
+  // 用來在「送出疑似失敗」時，二次確認資料到底存進伺服器沒有。
+  async function fetchServerRecords(year, month) {
+    try {
+      const res = await fetch(`${GAS_URL}?year=${year}&month=${month}`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 檢查一批 id 是否已存在於伺服器（依各筆自己的日期分月查詢）。
+  // 回傳 true = 全部都查到（代表其實已寫入成功）。
+  async function verifyRecordsOnServer(recordsToSave) {
+    // 依年月分組，避免同月重複查詢
+    const ymMap = {};
+    recordsToSave.forEach(r => {
+      const parts = String(r.date).split('-');
+      const key = parts[0] + '-' + Number(parts[1]);
+      if (!ymMap[key]) ymMap[key] = { year: Number(parts[0]), month: Number(parts[1]), ids: [] };
+      ymMap[key].ids.push(String(r.id));
+    });
+
+    for (const key of Object.keys(ymMap)) {
+      const g = ymMap[key];
+      const serverRecords = await fetchServerRecords(g.year, g.month);
+      if (serverRecords === null) return false; // 查詢也失敗，無法確認 → 當作未成功
+      const serverIds = new Set(serverRecords.map(r => String(r.id)));
+      for (const id of g.ids) {
+        if (!serverIds.has(id)) return false; // 有任一筆不在伺服器 → 未成功
+      }
+    }
+    return true;
+  }
+
   // 背景同步：把樂觀更新的資料實際送往伺服器，失敗才提示
   async function syncInBackground(op) {
     let ok = false;
@@ -931,6 +945,16 @@
 
     const ids = op.recordsToSave.map(r => String(r.id));
 
+    // ★ 關鍵修正：syncToSheet 回傳 false 不代表真的沒寫入。
+    //   Google Apps Script 的 POST 會經 302 重導，跨月/新分頁首次操作時
+    //   伺服器常已寫入成功，但回應在傳輸途中逾時或回傳非 JSON，被誤判為失敗。
+    //   因此送出「疑似失敗」時，先重新向伺服器查詢這幾筆 id 是否已存在，
+    //   確實不存在才回滾，避免把已寫入的紀錄誤刪（造成畫面消失、試算表卻有）。
+    if (!ok) {
+      const actuallySaved = await verifyRecordsOnServer(op.recordsToSave);
+      if (actuallySaved) ok = true; // 其實已寫入 → 視為成功
+    }
+
     if (ok) {
       // 成功：清掉 _pending 標記並更新快取
       records.forEach(r => { if (ids.includes(String(r.id))) delete r._pending; });
@@ -939,7 +963,7 @@
       saveLocalRecords(y, mo, records);
       // 不重繪也可以（標記是隱形的）；若你想讓「未同步」有視覺差異，可改為 renderCalendar()
     } else {
-      // 失敗：把樂觀加入的資料回滾，提示使用者重試
+      // 二次確認後仍未寫入才回滾，提示使用者重試
       if (op.isEdit) {
         // 編輯失敗：保留資料但標記未同步，避免使用者輸入消失
         alert('這筆編輯沒有成功上傳到伺服器，請稍後重新編輯一次。');
@@ -967,7 +991,19 @@
     resetForm(true);
 
     // 背景送出刪除，失敗才把資料還原
-    const ok = await syncToSheet('delete', recordToDelete);
+    let ok = await syncToSheet('delete', recordToDelete);
+
+    // ★ 同樣的傳輸層誤判：刪除可能已在伺服器完成，卻回傳 false。
+    //   二次向伺服器確認該筆是否已不存在，確實已刪就不還原。
+    if (!ok) {
+      const parts = String(recordToDelete.date).split('-');
+      const serverRecords = await fetchServerRecords(Number(parts[0]), Number(parts[1]));
+      if (serverRecords !== null) {
+        const stillThere = serverRecords.some(r => String(r.id) === String(id));
+        if (!stillThere) ok = true; // 伺服器已無此筆 → 刪除其實成功
+      }
+    }
+
     if (!ok) {
       records.push(backup);
       applyLocalChange();
